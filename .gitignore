@@ -1,3 +1,5 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
 # dependencies
 node_modules/
 
@@ -7,28 +9,45 @@ dist/
 web-build/
 expo-env.d.ts
 
-# native build output
-android/
-ios/
-*.apk
-*.aab
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
 
-# environment / secrets
-.env
-.env.*
-!.env.example
+# Metro
+.metro-health-check*
 
-# logs
+# debug
 npm-debug.*
 yarn-debug.*
 yarn-error.*
-*.log
 
-# OS / editor
+# macOS
 .DS_Store
-Thumbs.db
-.vscode/
-.idea/
+*.pem
 
-# generated Quran data (built by scripts/build-quran-data)
-assets/data/quran/*.json
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+example
+
+# generated native folders
+/ios
+/android
+
+# secrets (never commit API keys)
+.env
+.env.*
+
+# Quran data pipeline caches
+scripts/.cache/
+
+# Windows
+Thumbs.db

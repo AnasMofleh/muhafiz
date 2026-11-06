@@ -20,7 +20,7 @@
 
 ## Tech stack
 
-- Expo SDK + React Native + TypeScript, Expo Router, NativeWind (Tailwind)
+- Expo SDK 58 + React Native + TypeScript, Expo Router, NativeWind (Tailwind)
 - expo-sqlite (local-first storage), Zustand, expo-notifications, expo-audio, react-native-skia
 - Quran text: Tanzil (Hafs, Uthmani script) · Audio: everyayah.com / quran.com CDN · ASR: Groq Whisper (free tier)
 
@@ -30,6 +30,7 @@
 npm install
 npx expo start          # mobile (scan QR with Expo Go)
 npx expo start --web    # desktop web
+npm run export:web      # static web build (GitHub Pages)
 ```
 
 ## Data & licenses

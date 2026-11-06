@@ -1,0 +1,44 @@
+name: Deploy web to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Export static web build
+        run: npm run export:web
+        env:
+          EXPO_BASE_URL: /muhafiz
+
+      - name: Make asset paths relative and add SPA fallback
+        run: |
+          sed -i 's|src="/|src="./|g; s|href="/|href="./|g' dist/index.html
+          cp dist/index.html dist/404.html
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          force_orphan: true
