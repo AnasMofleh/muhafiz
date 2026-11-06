@@ -142,6 +142,7 @@ export default function SurahScreen() {
             const isCurrent = current?.surah === surahNumber && current?.ayah === item.number;
             return (
               <Pressable
+                testID={`ayah-${item.number}`}
                 onPress={() => (isCurrent && player.playing ? togglePlay() : playAyah({ surah: surahNumber, ayah: item.number }))}
                 style={[styles.ayah, isCurrent && { backgroundColor: highlight }]}>
                 <ThemedText

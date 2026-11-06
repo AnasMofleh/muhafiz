@@ -38,6 +38,7 @@ export default function SurahListScreen() {
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
             <Pressable
+              testID={`surah-${item.number}`}
               onPress={() => router.push({ pathname: '/surah/[id]', params: { id: String(item.number) } })}
               style={({ pressed }) => [
                 styles.row,
