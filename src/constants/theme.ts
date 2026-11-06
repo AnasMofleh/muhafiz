@@ -24,6 +24,19 @@ export const Colors = {
   },
 } as const;
 
+/**
+ * Brand palette — deep emerald (Islamic green) + gold, plus the mushaf
+ * ayah highlight used across all practice modes.
+ */
+export const Brand = {
+  emerald: '#0E7A5F',
+  emeraldSoft: '#E3F2EE',
+  emeraldDark: '#0A5C47',
+  gold: '#C9A227',
+  goldSoft: '#F7EFD8',
+  ayahHighlight: '#F2E8C9', // parchment tone behind the active ayah
+} as const;
+
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
 export const Fonts = Platform.select({
