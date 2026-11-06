@@ -51,3 +51,6 @@ scripts/.cache/
 
 # Windows
 Thumbs.db
+
+# browser-check artifacts
+scripts/.browser-check/
