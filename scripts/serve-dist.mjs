@@ -28,7 +28,13 @@ const MIME = {
 http
   .createServer((req, res) => {
     let p = decodeURIComponent(req.url.split('?')[0]);
-    if (p.startsWith(BASE)) p = p.slice(BASE.length);
+    // Strict subpath: anything outside BASE 404s, like the real GitHub Pages site.
+    if (!p.startsWith(BASE)) {
+      res.writeHead(404);
+      res.end('outside base path');
+      return;
+    }
+    p = p.slice(BASE.length);
     if (p === '/' || p === '') p = '/index.html';
 
     const file = path.join(DIST, p);

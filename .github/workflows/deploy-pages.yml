@@ -31,10 +31,8 @@ jobs:
         env:
           EXPO_BASE_URL: /muhafiz
 
-      - name: Make asset paths relative and add SPA fallback
-        run: |
-          sed -i 's|src="/|src="./|g; s|href="/|href="./|g' dist/index.html
-          cp dist/index.html dist/404.html
+      - name: Rewrite asset paths for subpath hosting + SPA fallback
+        run: node scripts/fix-paths.mjs
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4

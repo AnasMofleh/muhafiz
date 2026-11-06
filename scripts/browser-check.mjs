@@ -97,6 +97,18 @@ await page.waitForTimeout(800);
 await page.screenshot({ path: path.join(OUT, '5-settings.png') });
 console.log('   settings opened');
 
+// 6. Deep link: full page reload directly at a surah route (SPA fallback + absolute asset paths)
+console.log('6. deep-link reload at /surah/2');
+await page.goto(`${BASE}surah/2`, { waitUntil: 'networkidle', timeout: 60000 });
+try {
+  await page.waitForSelector('[data-testid="ayah-1"]', { timeout: 30000 });
+} catch {
+  await fail('deep-link');
+}
+await page.waitForTimeout(1200);
+await page.screenshot({ path: path.join(OUT, '6-deep-link-baqarah.png') });
+console.log('   deep link rendered (Al-Baqarah)');
+
 console.log('\nconsole/page errors:', errors.length === 0 ? 'none' : errors.join('\n  '));
 await browser.close();
 process.exit(errors.length === 0 ? 0 : 1);
