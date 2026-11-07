@@ -8,6 +8,12 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 export type ReminderAnchor = 'fajr' | 'asr' | 'maghrib' | 'isha' | 'fixed';
 
+export type AppLanguage = 'en' | 'sv' | 'ar';
+export type AppTheme = 'system' | 'light' | 'dark';
+export type MushafLayout = 'lines' | 'flow';
+export type MushafTextColor = 'classic' | 'green' | 'gold' | 'teal';
+export type FlashcardSection = 'today' | 'surah' | 'juz' | 'learned';
+
 export interface ReminderSlot {
   enabled: boolean;
   anchor: ReminderAnchor;
@@ -26,6 +32,21 @@ interface SettingsState {
   autoAdvance: boolean;
   fontScale: number; // mushaf text size multiplier
 
+  // General (i18n + theme)
+  language: AppLanguage;
+  theme: AppTheme;
+
+  // Mushaf display
+  mushafLayout: MushafLayout;
+  mushafTextColor: MushafTextColor;
+  mushafParchment: boolean;
+
+  // Flashcards
+  flashcardSection: FlashcardSection;
+  flashcardSurah: number;
+  flashcardJuz: number;
+  flashcardRandom: boolean;
+
   // Reminders (M3)
   remindersEnabled: boolean;
   /** City preset id from CITY_PRESETS, or 'custom'. */
@@ -41,6 +62,18 @@ interface SettingsState {
   setRepeatAyah: (n: number) => void;
   setAutoAdvance: (v: boolean) => void;
   setFontScale: (v: number) => void;
+
+  setLanguage: (language: AppLanguage) => void;
+  setTheme: (theme: AppTheme) => void;
+
+  setMushafLayout: (layout: MushafLayout) => void;
+  setMushafTextColor: (color: MushafTextColor) => void;
+  setMushafParchment: (v: boolean) => void;
+
+  setFlashcardSection: (section: FlashcardSection) => void;
+  setFlashcardSurah: (n: number) => void;
+  setFlashcardJuz: (n: number) => void;
+  setFlashcardRandom: (v: boolean) => void;
 
   setRemindersEnabled: (v: boolean) => void;
   setAnchorCity: (id: string) => void;
@@ -63,6 +96,18 @@ export const useSettings = create<SettingsState>()(
       autoAdvance: false,
       fontScale: 1,
 
+      language: 'en',
+      theme: 'system',
+
+      mushafLayout: 'lines',
+      mushafTextColor: 'classic',
+      mushafParchment: false,
+
+      flashcardSection: 'today',
+      flashcardSurah: 1,
+      flashcardJuz: 30,
+      flashcardRandom: false,
+
       remindersEnabled: false,
       anchorCity: 'custom',
       customLat: null,
@@ -76,6 +121,18 @@ export const useSettings = create<SettingsState>()(
       setRepeatAyah: (n) => set({ repeatAyah: n }),
       setAutoAdvance: (v) => set({ autoAdvance: v }),
       setFontScale: (v) => set({ fontScale: v }),
+
+      setLanguage: (language) => set({ language }),
+      setTheme: (theme) => set({ theme }),
+
+      setMushafLayout: (mushafLayout) => set({ mushafLayout }),
+      setMushafTextColor: (mushafTextColor) => set({ mushafTextColor }),
+      setMushafParchment: (mushafParchment) => set({ mushafParchment }),
+
+      setFlashcardSection: (flashcardSection) => set({ flashcardSection }),
+      setFlashcardSurah: (flashcardSurah) => set({ flashcardSurah }),
+      setFlashcardJuz: (flashcardJuz) => set({ flashcardJuz }),
+      setFlashcardRandom: (flashcardRandom) => set({ flashcardRandom }),
 
       setRemindersEnabled: (v) => set({ remindersEnabled: v }),
       setAnchorCity: (id) => set({ anchorCity: id }),

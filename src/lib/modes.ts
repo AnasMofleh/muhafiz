@@ -21,6 +21,7 @@ import {
   makeCardRow,
   parseUnitKey,
   scheduleCard,
+  unitKeyFor,
   type Rating,
 } from '@/lib/scheduler';
 import { xpForRating } from '@/lib/xp';
@@ -284,4 +285,35 @@ export async function getProgressSummary(): Promise<{
   }
 
   return { mastered, learning, reviewing };
+}
+
+/**
+ * Grade a range of ayahs through the canonical FSRS path (used by Recite
+ * self-grading and shared sheikh/friend grading results). Each ayah finds or
+ * creates its covering card, so recite reviews land in the same due queue as
+ * the practice modes.
+ */
+export async function gradeAyahRange(
+  surah: number,
+  fromAyah: number,
+  toAyah: number,
+  ratings: Record<number, Rating>,
+  mode = 'recite'
+): Promise<{ count: number; xp: number }> {
+  await db.ensureDb();
+  const cards = await db.getCardsForSurah(surah);
+  let count = 0;
+  let xp = 0;
+  for (let ayah = fromAyah; ayah <= toAyah; ayah += 1) {
+    const rating = ratings[ayah];
+    if (!rating) continue;
+    let card = cards.find((c) => c.startAyah <= ayah && c.endAyah >= ayah);
+    if (!card) {
+      card = await db.getOrCreateCard(unitKeyFor(surah, ayah, ayah));
+    }
+    const graded = await gradeCardReview({ card, rating, mode, errorCount: 0 });
+    xp += graded.xp;
+    count += 1;
+  }
+  return { count, xp };
 }

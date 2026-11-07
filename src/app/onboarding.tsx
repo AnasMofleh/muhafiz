@@ -10,6 +10,7 @@ import { Brand, Spacing } from '@/constants/theme';
 import { getIndex } from '@/data/quran';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
+import { useT } from '@/lib/i18n';
 import { createPlan } from '@/lib/db';
 import { PLAYBACK_RATES, RECITERS } from '@/lib/reciters';
 import { useSettings } from '@/store/settings';
@@ -25,6 +26,7 @@ export default function OnboardingScreen() {
   const theme = useTheme();
   const isDark = useColorScheme() === 'dark';
   const router = useRouter();
+  const t = useT();
   const index = useMemo(() => getIndex(), []);
   const settings = useSettings();
 
@@ -161,22 +163,22 @@ export default function OnboardingScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
           <ThemedText style={styles.stepLabel} themeColor="textSecondary">
-            STEP {step} OF {TOTAL_STEPS}
+            {t('onboarding.stepOf', { step })}
           </ThemedText>
 
           {step === 1 && (
             <>
-              <ThemedText style={styles.title}>What do you want to memorize?</ThemedText>
+              <ThemedText style={styles.title}>{t('onboarding.step1Title')}</ThemedText>
               <ThemedText style={styles.helper} themeColor="textSecondary">
-                Pick a set of surahs, a juz range, or the whole Quran.
+                {t('onboarding.step1Body')}
               </ThemedText>
 
               <View style={styles.segmentRow}>
                 {(
                   [
-                    { key: 'surahs', label: 'Surahs' },
-                    { key: 'juz', label: 'Juz range' },
-                    { key: 'quran', label: 'Whole Quran' },
+                    { key: 'surahs', label: t('onboarding.surahs') },
+                    { key: 'juz', label: t('onboarding.juzRange') },
+                    { key: 'quran', label: t('onboarding.wholeQuran') },
                   ] as { key: GoalMode; label: string }[]
                 ).map((option) => (
                   <Pressable
@@ -299,10 +301,9 @@ export default function OnboardingScreen() {
               {goalMode === 'quran' && (
                 <View style={[styles.summaryCard, { backgroundColor: theme.backgroundElement }]}>
                   <Ionicons name="earth-outline" size={28} color={accent} />
-                  <ThemedText style={styles.summaryTitle}>The entire Quran</ThemedText>
+                  <ThemedText style={styles.summaryTitle}>{t('onboarding.wholeQuranTitle')}</ThemedText>
                   <ThemedText style={styles.helper} themeColor="textSecondary">
-                    {index.ayahCount.toLocaleString()} ayahs across 114 surahs. We&apos;ll pace it for
-                    you.
+                    {t('onboarding.wholeQuranDesc')}
                   </ThemedText>
                 </View>
               )}
@@ -542,7 +543,7 @@ export default function OnboardingScreen() {
               accessibilityLabel="Next step"
               accessibilityState={{ disabled: step === 1 && !step1Valid }}
               testID="onboarding-next">
-              <ThemedText style={styles.nextBtnText}>Continue</ThemedText>
+              <ThemedText style={styles.nextBtnText}>{t('common.continue')}</ThemedText>
               <Ionicons name="arrow-forward" size={18} color="#fff" />
             </Pressable>
           ) : (

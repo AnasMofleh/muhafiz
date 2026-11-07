@@ -9,14 +9,15 @@ import { ThemedView } from '@/components/themed-view';
 import { Brand, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
+import { useT } from '@/lib/i18n';
 import { loadTodaySession, type TodaySession } from '@/lib/modes';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
 interface PracticeMode {
   key: string;
-  label: string;
-  caption: string;
+  labelKey: string;
+  captionKey: string;
   icon: IconName;
   route: Href;
   testID: string;
@@ -25,32 +26,24 @@ interface PracticeMode {
 const MODES: PracticeMode[] = [
   {
     key: 'flashcards',
-    label: 'Flashcards',
-    caption: 'Reveal the ayah, then self-grade',
+    labelKey: 'practice.flashcards',
+    captionKey: 'practice.flashcardsCaption',
     icon: 'albums-outline',
     route: '/practice/flashcards',
     testID: 'practice-mode-flashcards',
   },
   {
     key: 'hide-ayah',
-    label: 'Hide & Recite',
-    caption: 'Recite the next ayah from memory',
+    labelKey: 'practice.hideAyah',
+    captionKey: 'practice.hideAyahCaption',
     icon: 'eye-off-outline',
     route: '/practice/hide-ayah',
     testID: 'practice-mode-hide-ayah',
   },
   {
-    key: 'scratch',
-    label: 'Scratch',
-    caption: 'Scratch the cover to uncover',
-    icon: 'brush-outline',
-    route: '/practice/scratch',
-    testID: 'practice-mode-scratch',
-  },
-  {
     key: 'quiz',
-    label: 'Quiz',
-    caption: 'Next ayah, blanks, order, listening',
+    labelKey: 'practice.quiz',
+    captionKey: 'practice.quizCaption',
     icon: 'help-circle-outline',
     route: '/practice/quiz',
     testID: 'practice-mode-quiz',
@@ -61,6 +54,7 @@ export default function PracticeScreen() {
   const theme = useTheme();
   const isDark = useColorScheme() === 'dark';
   const router = useRouter();
+  const t = useT();
   const accent = isDark ? '#43D6A3' : Brand.emerald;
 
   const [session, setSession] = useState<TodaySession | null>(null);
@@ -107,7 +101,7 @@ export default function PracticeScreen() {
             <Ionicons name="arrow-back" size={22} color={theme.text} />
           </Pressable>
           <View style={styles.headerText}>
-            <ThemedText style={styles.headerTitle}>Practice</ThemedText>
+            <ThemedText style={styles.headerTitle}>{t('practice.title')}</ThemedText>
             <ThemedText style={styles.headerSub} themeColor="textSecondary">
               {dueNow > 0 ? `${dueNow} due now` : 'Review at your own pace'}
             </ThemedText>
@@ -193,7 +187,7 @@ export default function PracticeScreen() {
                     pressed && styles.pressed,
                   ]}
                   accessibilityRole="button"
-                  accessibilityLabel="Start today's session"
+                  accessibilityLabel={t('practice.startToday')}
                   testID="practice-start-today">
                   <Ionicons name="play" size={18} color={isDark ? '#06231B' : '#fff'} />
                   <ThemedText
@@ -270,7 +264,7 @@ export default function PracticeScreen() {
                   key={mode.key}
                   onPress={() => router.push(mode.route)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${mode.label} — ${mode.caption}`}
+                  accessibilityLabel={`${t(mode.labelKey)} — ${t(mode.captionKey)}`}
                   testID={mode.testID}
                   style={({ pressed }) => [
                     styles.modeCard,
@@ -288,9 +282,9 @@ export default function PracticeScreen() {
                       color={isDark ? '#fff' : Brand.emeraldDark}
                     />
                   </View>
-                  <ThemedText style={styles.modeLabel}>{mode.label}</ThemedText>
+                  <ThemedText style={styles.modeLabel}>{t(mode.labelKey)}</ThemedText>
                   <ThemedText style={styles.modeCaption} themeColor="textSecondary">
-                    {mode.caption}
+                    {t(mode.captionKey)}
                   </ThemedText>
                   <View style={styles.modeArrow}>
                     <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />

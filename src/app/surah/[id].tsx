@@ -8,12 +8,14 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
-  Text as MarkerText,
+  Switch,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MushafText } from '@/components/mushaf-text';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Brand, Fonts, Spacing } from '@/constants/theme';
@@ -21,10 +23,16 @@ import { getSurah } from '@/data/quran';
 import type { AyahRef, SurahData } from '@/data/types';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
+import { useT } from '@/lib/i18n';
 import { ayahAudioUrl, getReciter, PLAYBACK_RATES, RECITERS, REPEAT_OPTIONS } from '@/lib/reciters';
-import { useSettings } from '@/store/settings';
+import { useSettings, type MushafTextColor } from '@/store/settings';
 
-const BASMALA_TEXT = 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ';
+const COLOR_OPTIONS: { id: MushafTextColor; icon: 'text-outline' | 'leaf-outline' | 'star-outline' | 'water-outline' }[] = [
+  { id: 'classic', icon: 'text-outline' },
+  { id: 'green', icon: 'leaf-outline' },
+  { id: 'gold', icon: 'star-outline' },
+  { id: 'teal', icon: 'water-outline' },
+];
 
 export default function SurahScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -33,13 +41,27 @@ export default function SurahScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const router = useRouter();
+  const t = useT();
 
-  const { reciterId, playbackRate, repeatAyah, autoAdvance, fontScale } = useSettings();
+  const {
+    reciterId,
+    playbackRate,
+    repeatAyah,
+    autoAdvance,
+    fontScale,
+    mushafLayout,
+    mushafTextColor,
+    mushafParchment,
+    setMushafLayout,
+    setMushafTextColor,
+    setMushafParchment,
+  } = useSettings();
   const reciter = getReciter(reciterId);
 
   // Surah data loads on demand (per-surah code splitting).
   const [surah, setSurah] = useState<SurahData | null>(null);
   const [invalid, setInvalid] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   useEffect(() => {
     let cancelled = false;
     setSurah(null);
@@ -83,8 +105,7 @@ export default function SurahScreen() {
 
   const playAyah = (ref: AyahRef) => {
     const cur = currentRef.current;
-    const same =
-      cur !== null && cur.surah === ref.surah && cur.ayah === ref.ayah;
+    const same = cur !== null && cur.surah === ref.surah && cur.ayah === ref.ayah;
     if (!same) {
       player.replace(ayahAudioUrl(reciter, ref.surah, ref.ayah));
       player.setPlaybackRate(playbackRate, 'high'); // replace resets rate
@@ -153,6 +174,13 @@ export default function SurahScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.didJustFinish, repeatAyah, autoAdvance, surah]);
 
+  // Keep a ref to the latest togglePlay so the once-registered keyboard
+  // listener never closes over a stale handler.
+  const togglePlayRef = useRef(togglePlay);
+  useEffect(() => {
+    togglePlayRef.current = togglePlay;
+  }, [togglePlay]);
+
   // Web keyboard shortcut: space toggles playback.
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -166,27 +194,20 @@ export default function SurahScreen() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Keep a ref to the latest togglePlay so the once-registered listener never
-  // closes over a stale handler.
-  const togglePlayRef = useRef(togglePlay);
-  useEffect(() => {
-    togglePlayRef.current = togglePlay;
-  }, [togglePlay]);
-
   if (invalid) {
     return (
       <ThemedView style={styles.root}>
         <SafeAreaView edges={['top', 'bottom']} style={styles.centerWrap}>
-          <ThemedText style={styles.notFoundTitle}>Surah not found</ThemedText>
+          <ThemedText style={styles.notFoundTitle}>{t('mushaf.surahNotFound')}</ThemedText>
           <ThemedText style={styles.notFoundSub} themeColor="textSecondary">
-            This link does not point to a surah in the mushaf.
+            {t('mushaf.surahNotFoundBody')}
           </ThemedText>
           <Pressable
             onPress={() => router.replace('/')}
             style={[styles.backHomeBtn, { backgroundColor: Brand.emerald }]}
             accessibilityRole="button"
-            accessibilityLabel="Back to surah list">
-            <ThemedText style={styles.backHomeText}>Back to surah list</ThemedText>
+            accessibilityLabel={t('mushaf.backToList')}>
+            <ThemedText style={styles.backHomeText}>{t('mushaf.backToList')}</ThemedText>
           </Pressable>
         </SafeAreaView>
       </ThemedView>
@@ -197,15 +218,20 @@ export default function SurahScreen() {
     return (
       <ThemedView style={styles.root}>
         <SafeAreaView edges={['top', 'bottom']} style={styles.centerWrap}>
-          <ThemedText themeColor="textSecondary">Loading…</ThemedText>
+          <ThemedText themeColor="textSecondary">{t('common.loading')}</ThemedText>
         </SafeAreaView>
       </ThemedView>
     );
   }
 
-  const showBasmala = surah.ayahs[0]?.basmalaStripped === true;
-  const highlight = isDark ? '#1E3B33' : '#EFE0B5';
-  const gold = isDark ? Brand.gold : Brand.goldDark;
+  const onAyahTap = (ayahNumber: number) => {
+    const ref = { surah: surahNumber, ayah: ayahNumber };
+    if (current?.surah === surahNumber && current?.ayah === ayahNumber && player.playing) {
+      togglePlay();
+    } else {
+      playAyah(ref);
+    }
+  };
 
   return (
     <ThemedView style={styles.root}>
@@ -216,75 +242,64 @@ export default function SurahScreen() {
             onPress={() => router.back()}
             style={[styles.iconBtn, { borderColor: theme.backgroundSelected }]}
             accessibilityRole="button"
-            accessibilityLabel="Back">
+            accessibilityLabel={t('common.back')}>
             <Ionicons name="arrow-back" size={22} color={theme.text} />
           </Pressable>
           <View style={styles.headerText}>
             <ThemedText style={styles.surahName}>{surah.name}</ThemedText>
             <ThemedText style={styles.surahSub} themeColor="textSecondary">
-              {surah.englishName} · {surah.ayahCount} ayahs · {surah.revelationType}
+              {surah.englishName} · {surah.ayahCount} {t('common.ayahs')} ·{' '}
+              {surah.revelationType === 'Meccan' ? t('mushaf.meccan') : t('mushaf.medinan')}
             </ThemedText>
           </View>
           <View style={styles.headerRight} />
         </View>
 
-        <FlatList
-          data={surah.ayahs}
-          keyExtractor={(a) => String(a.number)}
-          contentContainerStyle={styles.list}
-          ListHeaderComponent={
-            showBasmala ? (
-              <ThemedText
-                style={[styles.basmala, { fontSize: 24 * fontScale, lineHeight: 46 * fontScale, color: gold }]}>
-                {BASMALA_TEXT}
-              </ThemedText>
-            ) : undefined
-          }
-          renderItem={({ item }) => {
-            const isCurrent = current?.surah === surahNumber && current?.ayah === item.number;
-            return (
-              <Pressable
-                testID={`ayah-${item.number}`}
-                accessibilityRole="button"
-                accessibilityLabel={`Ayah ${item.number}${isCurrent ? ', playing' : ''}`}
-                accessibilityState={{ selected: isCurrent, busy: isCurrent && player.playing }}
-                onPress={() => (isCurrent && player.playing ? togglePlay() : playAyah({ surah: surahNumber, ayah: item.number }))}
-                style={[styles.ayah, isCurrent && { backgroundColor: highlight }]}>
-                <ThemedText
-                  style={[
-                    styles.ayahText,
-                    { fontSize: 26 * fontScale, lineHeight: 52 * fontScale },
-                  ]}
-                  selectable>
-                  {item.text_uthmani}
-                  {item.sajda ? (
-                    <ThemedText style={[styles.sajda, { fontSize: 26 * fontScale }]} themeColor="textSecondary">
-                      {' ۩'}
-                    </ThemedText>
-                  ) : null}
-                  <MarkerText>
-                    {/* The marker is a Text, not a View, so it stays inline with
-                        the last word instead of wrapping alone to a new line. */}
-                    <ThemedText
-                      style={[
-                        styles.ayahEnd,
-                        { borderColor: gold, width: 30 * fontScale, height: 30 * fontScale, borderRadius: 15 * fontScale },
-                      ]}>
-                      <ThemedText style={[styles.ayahEndNumber, { color: gold, fontSize: 14 * fontScale }]}>
-                        {item.number}
-                      </ThemedText>
-                    </ThemedText>
-                  </MarkerText>
-                </ThemedText>
-                {isCurrent && (
-                  <ThemedText style={styles.nowPlaying} themeColor="textSecondary">
-                    {player.playing ? '▶' : '⏸'} {reciter.name}
-                  </ThemedText>
-                )}
-              </Pressable>
-            );
-          }}
-        />
+        {/* Layout / palette toolbar */}
+        <View style={styles.toolbar}>
+          <Pressable
+            onPress={() => setMushafLayout(mushafLayout === 'lines' ? 'flow' : 'lines')}
+            style={[styles.toolBtn, { borderColor: theme.backgroundSelected }]}
+            accessibilityRole="button"
+            accessibilityLabel={t('settings.layout')}
+            testID="mushaf-layout-toggle">
+            <Ionicons
+              name={mushafLayout === 'lines' ? 'reader-outline' : 'list-outline'}
+              size={18}
+              color={Brand.teal}
+            />
+            <ThemedText type="smallBold" style={{ color: Brand.teal }}>
+              {mushafLayout === 'lines' ? t('mushaf.layoutFlow') : t('mushaf.layoutLines')}
+            </ThemedText>
+          </Pressable>
+          <Pressable
+            onPress={() => setPaletteOpen(true)}
+            style={[styles.toolBtn, { borderColor: theme.backgroundSelected }]}
+            accessibilityRole="button"
+            accessibilityLabel={t('mushaf.textColor')}
+            testID="mushaf-palette">
+            <Ionicons name="color-palette-outline" size={18} color={Brand.gold} />
+            <ThemedText type="smallBold" style={{ color: Brand.gold }}>
+              {t('mushaf.textColor')}
+            </ThemedText>
+          </Pressable>
+          <View style={styles.toolbarSpacer} />
+          <ThemedText type="small" themeColor="textSecondary" style={styles.toolbarHint}>
+            {t('common.surah')} {surahNumber}
+          </ThemedText>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.list}>
+          <MushafText
+            surah={surah}
+            layout={mushafLayout}
+            textColor={mushafTextColor}
+            parchment={mushafParchment}
+            fontScale={fontScale}
+            currentAyah={current?.surah === surahNumber ? current.ayah : undefined}
+            onAyahTap={onAyahTap}
+          />
+        </ScrollView>
 
         {/* Player bar */}
         {current && (
@@ -302,14 +317,14 @@ export default function SurahScreen() {
                 onPress={replay}
                 style={styles.playerBtn}
                 accessibilityRole="button"
-                accessibilityLabel="Replay ayah">
+                accessibilityLabel={t('mushaf.replay')}>
                 <Ionicons name="refresh" size={20} color={theme.text} />
               </Pressable>
               <Pressable
                 onPress={togglePlay}
                 style={[styles.playerBtn, styles.playBtn]}
                 accessibilityRole="button"
-                accessibilityLabel={player.playing ? 'Pause' : 'Play'}
+                accessibilityLabel={player.playing ? t('mushaf.pause') : t('mushaf.play')}
                 accessibilityState={{ selected: player.playing }}>
                 <Ionicons name={player.playing ? 'pause' : 'play'} size={26} color="#fff" />
               </Pressable>
@@ -317,7 +332,7 @@ export default function SurahScreen() {
                 onPress={() => setReciterOpen(true)}
                 style={styles.playerBtn}
                 accessibilityRole="button"
-                accessibilityLabel="Choose reciter">
+                accessibilityLabel={t('mushaf.reciter')}>
                 <Ionicons name="person-circle-outline" size={22} color={theme.text} />
               </Pressable>
             </View>
@@ -330,7 +345,7 @@ export default function SurahScreen() {
                 }}
                 style={[styles.chip, { borderColor: theme.backgroundSelected }]}
                 accessibilityRole="button"
-                accessibilityLabel={`Playback speed ${playbackRate} times`}>
+                accessibilityLabel={`${t('mushaf.speed')} ${playbackRate}×`}>
                 <ThemedText style={styles.chipText}>{playbackRate}×</ThemedText>
               </Pressable>
               <Pressable
@@ -341,12 +356,67 @@ export default function SurahScreen() {
                 }}
                 style={[styles.chip, { borderColor: theme.backgroundSelected }]}
                 accessibilityRole="button"
-                accessibilityLabel={`Repeat each ayah ${repeatAyah} times`}>
+                accessibilityLabel={`${t('mushaf.repeat')} ×${repeatAyah}`}>
                 <ThemedText style={styles.chipText}>×{repeatAyah}</ThemedText>
               </Pressable>
             </View>
           </View>
         )}
+
+        {/* Palette modal */}
+        <Modal
+          visible={paletteOpen}
+          transparent
+          animationType={reduceMotion ? 'none' : 'slide'}
+          onRequestClose={() => setPaletteOpen(false)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setPaletteOpen(false)}>
+            <SafeAreaView edges={['bottom']} style={[styles.sheet, { backgroundColor: theme.background }]}>
+              <Pressable onPress={() => {}} style={styles.sheetInner}>
+                <ThemedText style={styles.sheetTitle}>{t('mushaf.textColor')}</ThemedText>
+                <View style={styles.colorRow}>
+                  {COLOR_OPTIONS.map((option) => (
+                    <Pressable
+                      key={option.id}
+                      onPress={() => setMushafTextColor(option.id)}
+                      style={[
+                        styles.colorOption,
+                        {
+                          borderColor:
+                            mushafTextColor === option.id ? Brand.gold : theme.backgroundSelected,
+                          backgroundColor:
+                            mushafTextColor === option.id ? Brand.goldSoft : 'transparent',
+                        },
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel={t(`mushaf.color${option.id[0].toUpperCase()}${option.id.slice(1)}`)}>
+                      <Ionicons
+                        name={option.icon}
+                        size={20}
+                        color={
+                          option.id === 'classic'
+                            ? theme.text
+                            : option.id === 'green'
+                              ? Brand.emerald
+                              : option.id === 'gold'
+                                ? Brand.gold
+                                : Brand.teal
+                        }
+                      />
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={styles.parchmentRow}>
+                  <ThemedText style={styles.parchmentLabel}>{t('mushaf.parchment')}</ThemedText>
+                  <Switch
+                    value={mushafParchment}
+                    onValueChange={setMushafParchment}
+                    trackColor={{ true: Brand.emerald }}
+                  />
+                </View>
+              </Pressable>
+            </SafeAreaView>
+          </Pressable>
+        </Modal>
 
         {/* Reciter picker */}
         <Modal
@@ -359,7 +429,7 @@ export default function SurahScreen() {
               edges={['bottom']}
               style={[styles.sheet, { backgroundColor: theme.background }]}>
               <Pressable onPress={() => {}} style={styles.sheetInner}>
-                <ThemedText style={styles.sheetTitle}>Reciter</ThemedText>
+                <ThemedText style={styles.sheetTitle}>{t('mushaf.reciter')}</ThemedText>
                 <FlatList
                   data={RECITERS}
                   keyExtractor={(r) => r.id}
@@ -413,33 +483,25 @@ const styles = StyleSheet.create({
   headerRight: { width: 38 },
   surahName: { fontSize: 20, fontFamily: 'Amiri-Bold', lineHeight: 30 },
   surahSub: { fontSize: 12 },
-  list: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.four },
-  basmala: {
-    fontFamily: 'Amiri',
-    textAlign: 'center',
-    marginBottom: Spacing.three,
-  },
-  ayah: {
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.two,
-    borderRadius: 10,
-    marginBottom: Spacing.one,
-  },
-  ayahText: {
-    fontFamily: 'Amiri',
-    fontWeight: '400',
-    textAlign: 'right',
-    writingDirection: 'rtl',
-  },
-  sajda: { fontFamily: 'Amiri' },
-  ayahEnd: {
-    borderWidth: 1.5,
+  toolbar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'flex-start',
-    marginTop: 10,
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingBottom: Spacing.two,
   },
-  ayahEndNumber: { fontFamily: 'Amiri' },
+  toolBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
+  },
+  toolbarSpacer: { flex: 1 },
+  toolbarHint: { fontSize: 11 },
+  list: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.four },
   nowPlaying: { fontSize: 12, marginTop: 2, textAlign: 'left' },
   playerBar: {
     borderRadius: 16,
@@ -468,6 +530,21 @@ const styles = StyleSheet.create({
   sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%' },
   sheetInner: { padding: Spacing.four },
   sheetTitle: { fontSize: 20, fontWeight: 700, marginBottom: Spacing.two },
+  colorRow: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.three },
+  colorOption: {
+    flex: 1,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: Spacing.three,
+  },
+  parchmentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Spacing.two,
+  },
+  parchmentLabel: { fontSize: 15, fontWeight: 600 },
   reciterRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.three, gap: Spacing.two },
   reciterText: { flex: 1 },
   reciterName: { fontSize: 16, fontWeight: 600 },

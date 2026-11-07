@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Brand, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
+import { useT } from '@/lib/i18n';
 import {
   ensureDb,
   getMasteredAyahCount,
@@ -33,6 +34,7 @@ interface StatCard {
 export default function ProfileScreen() {
   const theme = useTheme();
   const isDark = useColorScheme() === 'dark';
+  const t = useT();
   const router = useRouter();
   const accent = isDark ? '#43D6A3' : Brand.emerald;
 
@@ -124,7 +126,7 @@ export default function ProfileScreen() {
             accessibilityLabel="Back">
             <Ionicons name="arrow-back" size={22} color={theme.text} />
           </Pressable>
-          <ThemedText style={styles.headerTitle}>Profile</ThemedText>
+          <ThemedText style={styles.headerTitle}>{t('profile.title')}</ThemedText>
           <View style={styles.headerRight} />
         </View>
 

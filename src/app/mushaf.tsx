@@ -8,10 +8,12 @@ import { ThemedView } from '@/components/themed-view';
 import { Brand, Fonts, Spacing } from '@/constants/theme';
 import { getIndex } from '@/data/quran';
 import { useTheme } from '@/hooks/use-theme';
+import { useT } from '@/lib/i18n';
 
 export default function MushafScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const t = useT();
   const index = getIndex();
 
   return (
@@ -27,16 +29,16 @@ export default function MushafScreen() {
             <Ionicons name="arrow-back" size={22} color={theme.text} />
           </Pressable>
           <View style={styles.headerText}>
-            <ThemedText style={styles.appName}>Mushaf</ThemedText>
+            <ThemedText style={styles.appName}>{t('mushaf.title')}</ThemedText>
             <ThemedText style={styles.appSub} themeColor="textSecondary">
-              Hafs · {index.ayahCount} ayahs · 114 surahs
+              {t('mushaf.listSubtitle', { ayahs: index.ayahCount })}
             </ThemedText>
           </View>
           <Pressable
             onPress={() => router.push('/settings')}
             style={[styles.iconBtn, { borderColor: theme.backgroundSelected }]}
             accessibilityRole="button"
-            accessibilityLabel="Settings">
+            accessibilityLabel={t('common.settings')}>
             <Ionicons name="settings-outline" size={22} color={theme.text} />
           </Pressable>
         </View>

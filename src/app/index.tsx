@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Brand, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
+import { useT } from '@/lib/i18n';
 import {
   ensureDb,
   getActivePlan,
@@ -34,26 +35,27 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 
 interface NavItem {
   key: string;
-  label: string;
-  caption: string;
+  labelKey: string;
+  captionKey: string;
   icon: IconName;
   route: Href;
   testID: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { key: 'mushaf', label: 'Mushaf', caption: 'Read the Quran', icon: 'book-outline', route: '/mushaf', testID: 'nav-mushaf' },
-  { key: 'path', label: 'Path', caption: 'Your progress', icon: 'map-outline', route: '/path', testID: 'nav-path' },
-  { key: 'practice', label: 'Practice', caption: 'Review session', icon: 'play-circle-outline', route: '/practice', testID: 'nav-practice' },
-  { key: 'recite', label: 'Recite', caption: 'Check recitation', icon: 'mic-outline', route: '/recite', testID: 'nav-recite' },
-  { key: 'social', label: 'Challenges', caption: 'Friends & groups', icon: 'people-outline', route: '/social', testID: 'nav-social' },
-  { key: 'settings', label: 'Settings', caption: 'Reciter & text', icon: 'settings-outline', route: '/settings', testID: 'nav-settings' },
+  { key: 'mushaf', labelKey: 'today.nav.mushaf', captionKey: 'today.nav.mushafCaption', icon: 'book-outline', route: '/mushaf', testID: 'nav-mushaf' },
+  { key: 'path', labelKey: 'today.nav.path', captionKey: 'today.nav.pathCaption', icon: 'map-outline', route: '/path', testID: 'nav-path' },
+  { key: 'practice', labelKey: 'today.nav.practice', captionKey: 'today.nav.practiceCaption', icon: 'play-circle-outline', route: '/practice', testID: 'nav-practice' },
+  { key: 'recite', labelKey: 'today.nav.recite', captionKey: 'today.nav.reciteCaption', icon: 'mic-outline', route: '/recite', testID: 'nav-recite' },
+  { key: 'social', labelKey: 'today.nav.challenges', captionKey: 'today.nav.challengesCaption', icon: 'people-outline', route: '/social', testID: 'nav-social' },
+  { key: 'settings', labelKey: 'today.nav.settings', captionKey: 'today.nav.settingsCaption', icon: 'settings-outline', route: '/settings', testID: 'nav-settings' },
 ];
 
 export default function TodayScreen() {
   const theme = useTheme();
   const isDark = useColorScheme() === 'dark';
   const router = useRouter();
+  const t = useT();
   const accent = isDark ? '#43D6A3' : Brand.emerald;
 
   const [plan, setPlan] = useState<PlanRow | null>(null);
@@ -144,7 +146,7 @@ export default function TodayScreen() {
         {
           key: 'sabaq' as BlockKey,
           title: 'SABAQ',
-          caption: "Today's new lesson",
+          caption: t('today.blocks.sabaq').replace('SABAQ — ', ''),
           keys: day.sabaq,
           done: day.doneSabaq,
           testID: 'block-sabaq',
@@ -153,7 +155,7 @@ export default function TodayScreen() {
         {
           key: 'sabqi' as BlockKey,
           title: 'SABQI',
-          caption: 'Recent revision · last 7 days',
+          caption: t('today.blocks.sabqi').replace('SABQI — ', ''),
           keys: day.sabqi,
           done: day.doneSabqi,
           testID: 'block-sabqi',
@@ -162,7 +164,7 @@ export default function TodayScreen() {
         {
           key: 'manzil' as BlockKey,
           title: 'MANZIL',
-          caption: 'Older revision',
+          caption: t('today.blocks.manzil').replace('MANZIL — ', ''),
           keys: day.manzil,
           done: day.doneManzil,
           testID: 'block-manzil',
@@ -183,14 +185,16 @@ export default function TodayScreen() {
             <View style={styles.headerText}>
               <ThemedText style={[styles.appName, { color: accent }]}>Muhafiz</ThemedText>
               <ThemedText style={styles.appSub} themeColor="textSecondary">
-                {day ? `${doneBlocks} of 3 blocks done today` : 'Your memorization companion'}
+                {day
+                  ? `${doneBlocks} of 3 blocks done today`
+                  : t('today.appTagline')}
               </ThemedText>
             </View>
             <Pressable
               onPress={() => router.push('/profile')}
               style={[styles.iconBtn, { borderColor: theme.backgroundSelected }]}
               accessibilityRole="button"
-              accessibilityLabel="Profile and stats"
+              accessibilityLabel={t('profile.title')}
               testID="today-profile">
               <Ionicons name="person-circle-outline" size={24} color={theme.text} />
             </Pressable>
@@ -209,10 +213,9 @@ export default function TodayScreen() {
               <View style={[styles.welcomeIcon, { backgroundColor: isDark ? Brand.emeraldDark : Brand.emeraldSoft }]}>
                 <Ionicons name="book" size={36} color={isDark ? '#fff' : Brand.emeraldDark} />
               </View>
-              <ThemedText style={styles.welcomeTitle}>Create your memorization plan</ThemedText>
+              <ThemedText style={styles.welcomeTitle}>{t('today.welcomeTitle')}</ThemedText>
               <ThemedText style={styles.welcomeBody} themeColor="textSecondary">
-                Choose what to memorize, how much per day, and get a daily SABAQ · SABQI · MANZIL
-                schedule built around your life.
+                {t('today.welcomeBody')}
               </ThemedText>
               <Pressable
                 onPress={() => router.push('/onboarding')}
@@ -222,9 +225,9 @@ export default function TodayScreen() {
                   pressed && styles.pressed,
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel="Create your memorization plan"
+                accessibilityLabel={t('today.welcomeTitle')}
                 testID="today-create-plan">
-                <ThemedText style={styles.primaryBtnText}>Get started</ThemedText>
+                <ThemedText style={styles.primaryBtnText}>{t('today.getStarted')}</ThemedText>
                 <Ionicons name="arrow-forward" size={18} color="#fff" />
               </Pressable>
             </View>
@@ -235,14 +238,14 @@ export default function TodayScreen() {
                   <Ionicons name="flame" size={20} color={Brand.gold} />
                   <ThemedText style={styles.statValue}>{streak?.current ?? 0}</ThemedText>
                   <ThemedText style={styles.statLabel} themeColor="textSecondary">
-                    day streak
+                    {t('today.streakDay')}
                   </ThemedText>
                 </View>
                 <View style={[styles.statChip, { backgroundColor: theme.backgroundElement }]}>
                   <Ionicons name="snow-outline" size={20} color={isDark ? '#9CC7EA' : '#3F7FBF'} />
                   <ThemedText style={styles.statValue}>{streak?.freezes ?? 0}</ThemedText>
                   <ThemedText style={styles.statLabel} themeColor="textSecondary">
-                    freezes
+                    {t('today.freezes')}
                   </ThemedText>
                 </View>
                 <View style={[styles.statChip, { backgroundColor: theme.backgroundElement }]}>
@@ -258,10 +261,10 @@ export default function TodayScreen() {
                 <View style={styles.startTop}>
                   <View>
                     <ThemedText style={styles.startEyebrow} themeColor="textSecondary">
-                      TODAY&apos;S SESSION · {dueCards} DUE
+                      {t('common.today')} · {dueCards} {t('today.due')}
                     </ThemedText>
                     <ThemedText style={styles.startTitle}>
-                      {totalUnits === 0 ? 'All caught up' : `${totalUnits} chunks ready`}
+                      {totalUnits === 0 ? t('today.doneToday') : `${totalUnits} chunks ready`}
                     </ThemedText>
                   </View>
                   <View style={[styles.etaPill, { backgroundColor: isDark ? Brand.emeraldDark : Brand.emeraldSoft }]}>
@@ -280,10 +283,10 @@ export default function TodayScreen() {
                     pressed && styles.pressed,
                   ]}
                   accessibilityRole="button"
-                  accessibilityLabel="Start today's session"
+                  accessibilityLabel={t('today.startSession')}
                   testID="today-start">
                   <Ionicons name="play" size={18} color="#fff" />
-                  <ThemedText style={styles.primaryBtnText}>Start today&apos;s session</ThemedText>
+                  <ThemedText style={styles.primaryBtnText}>{t('today.startSession')}</ThemedText>
                 </Pressable>
               </View>
 
@@ -326,7 +329,7 @@ export default function TodayScreen() {
               })}
 
               <ThemedText style={styles.sectionTitle} themeColor="textSecondary">
-                EXPLORE
+                {t('today.explore')}
               </ThemedText>
               <View style={styles.navGrid}>
                 {NAV_ITEMS.map((item) => (
@@ -335,7 +338,7 @@ export default function TodayScreen() {
                     testID={item.testID}
                     onPress={() => router.push(item.route)}
                     accessibilityRole="button"
-                    accessibilityLabel={`${item.label} — ${item.caption}`}
+                    accessibilityLabel={`${t(item.labelKey)} — ${t(item.captionKey)}`}
                     style={({ pressed }) => [
                       styles.navCard,
                       { backgroundColor: theme.backgroundElement },
@@ -352,9 +355,9 @@ export default function TodayScreen() {
                         color={isDark ? '#fff' : Brand.teal}
                       />
                     </View>
-                    <ThemedText style={styles.navLabel}>{item.label}</ThemedText>
+                    <ThemedText style={styles.navLabel}>{t(item.labelKey)}</ThemedText>
                     <ThemedText style={styles.navCaption} themeColor="textSecondary">
-                      {item.caption}
+                      {t(item.captionKey)}
                     </ThemedText>
                   </Pressable>
                 ))}

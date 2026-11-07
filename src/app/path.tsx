@@ -10,6 +10,7 @@ import { Brand, Spacing } from '@/constants/theme';
 import { getIndex, globalAyahNumber, juzStartGlobal } from '@/data/quran';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
+import { useT } from '@/lib/i18n';
 import {
   ensureDb,
   getActivePlan,
@@ -46,6 +47,7 @@ export default function PathScreen() {
   const theme = useTheme();
   const isDark = useColorScheme() === 'dark';
   const router = useRouter();
+  const t = useT();
   const index = getIndex();
   const accent = isDark ? '#43D6A3' : Brand.emerald;
 
@@ -69,14 +71,36 @@ export default function PathScreen() {
         return;
       }
       const surahs = getPlanSurahs(active);
-      const [allCards, recentLogs, progressList] = await Promise.all([
+      const [allCards, recentLogs] = await Promise.all([
         getAllCards(),
         getReviewLogsSince(Date.now() - FORECAST_DAYS * DAY_MS),
-        Promise.all(surahs.map((surah) => getProgress(surah))),
       ]);
       setPlan(active);
       setCards(allCards);
       setLogs(recentLogs);
+      // Per-surah progress derived in memory from the loaded cards (one pass,
+      // no per-surah queries).
+      const progressList: SurahProgress[] = [];
+      for (const meta of index.surahs) {
+        const surahCards = allCards.filter((card) => card.surah === meta.number);
+        const masteredCards = surahCards.filter((card) => card.status === 'mastered');
+        const covered = new Array<boolean>(meta.ayahCount).fill(false);
+        for (const card of masteredCards) {
+          const from = Math.max(1, card.startAyah);
+          const to = Math.min(meta.ayahCount, card.endAyah);
+          for (let ayah = from; ayah <= to; ayah += 1) covered[ayah - 1] = true;
+        }
+        const masteredAyahs = covered.filter(Boolean).length;
+        progressList.push({
+          surah: meta.number,
+          ayahCount: meta.ayahCount,
+          masteredAyahs,
+          totalCards: surahCards.length,
+          masteredCards: masteredCards.length,
+          percent:
+            meta.ayahCount > 0 ? Math.min(100, Math.round((masteredAyahs / meta.ayahCount) * 100)) : 0,
+        });
+      }
       setProgress(progressList);
       setError(null);
     } catch (e) {
@@ -161,7 +185,7 @@ export default function PathScreen() {
             accessibilityLabel="Back">
             <Ionicons name="arrow-back" size={22} color={theme.text} />
           </Pressable>
-          <ThemedText style={styles.headerTitle}>Learning Path</ThemedText>
+          <ThemedText style={styles.headerTitle}>{t('path.title')}</ThemedText>
           <View style={styles.headerRight} />
         </View>
 
@@ -265,6 +289,90 @@ export default function PathScreen() {
                   </View>
                 );
               })}
+            </View>
+
+            <ThemedText style={styles.sectionTitle} themeColor="textSecondary">
+              {t('path.histogramTitle')}
+            </ThemedText>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.histogramScroll}
+              testID="path-histogram">
+              {index.surahs.map((meta) => {
+                const row = progress.find((p) => p.surah === meta.number);
+                const pct = row?.percent ?? 0;
+                const inPlan = planSurahSet.has(meta.number);
+                const finished = pct >= 100;
+                const started = pct > 0;
+                const barHeight = Math.max(4, Math.round((pct / 100) * 120));
+                return (
+                  <Pressable
+                    key={meta.number}
+                    testID={`path-bar-${meta.number}`}
+                    onPress={() =>
+                      router.push({ pathname: '/surah/[id]', params: { id: String(meta.number) } })
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel={`Surah ${meta.number}: ${pct}%`}
+                    style={styles.histogramBarWrap}>
+                    <View
+                      style={[
+                        styles.histogramTrack,
+                        {
+                          borderColor: finished
+                            ? Brand.emerald
+                            : started
+                              ? Brand.gold
+                              : inPlan
+                                ? theme.backgroundSelected
+                                : 'transparent',
+                        },
+                      ]}>
+                      <View
+                        style={[
+                          styles.histogramFill,
+                          {
+                            height: barHeight,
+                            backgroundColor: finished
+                              ? Brand.emerald
+                              : started
+                                ? isDark
+                                  ? Brand.gold
+                                  : Brand.goldDark
+                                : 'transparent',
+                            opacity: finished || started ? 1 : 0,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <ThemedText style={styles.histogramLabel} themeColor="textSecondary">
+                      {meta.number}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.histogramLegend}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: Brand.emerald }]} />
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t('path.histogramLegendFilled')}
+                </ThemedText>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: Brand.gold }]} />
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t('path.histogramLegendPartial')}
+                </ThemedText>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: theme.backgroundSelected }]} />
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t('path.histogramLegendEmpty')}
+                </ThemedText>
+              </View>
             </View>
 
             <ThemedText style={styles.sectionTitle} themeColor="textSecondary">
@@ -403,6 +511,22 @@ const styles = StyleSheet.create({
   forecastText: { fontSize: 12, fontWeight: 700 },
   sectionTitle: { fontSize: 11, fontWeight: 700, letterSpacing: 1.2, marginTop: Spacing.three },
   juzGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.one },
+  histogramScroll: { paddingVertical: Spacing.two, paddingHorizontal: Spacing.two },
+  histogram: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
+  histogramBarWrap: { alignItems: 'center', width: 18 },
+  histogramTrack: {
+    height: 124,
+    width: 12,
+    borderRadius: 3,
+    borderWidth: 1.5,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  histogramFill: { width: '100%', borderBottomLeftRadius: 1.5, borderBottomRightRadius: 1.5 },
+  histogramLabel: { fontSize: 8, marginTop: 2, textAlign: 'center' },
+  histogramLegend: { flexDirection: 'row', gap: Spacing.three, marginTop: Spacing.two, flexWrap: 'wrap' },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
   juzCell: {
     width: 36,
     height: 36,

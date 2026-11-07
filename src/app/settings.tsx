@@ -28,6 +28,8 @@ import {
   type PrayerTimeSet,
 } from '@/lib/prayer-times';
 import { PLAYBACK_RATES, RECITERS, REPEAT_OPTIONS } from '@/lib/reciters';
+import { LANGUAGES, useT } from '@/lib/i18n';
+import { applyRTL } from '@/lib/rtl';
 import { useSettings, type ReminderAnchor, type ReminderSlot } from '@/store/settings';
 
 const ANCHOR_OPTIONS: { value: ReminderAnchor; label: string }[] = [
@@ -68,10 +70,16 @@ export default function SettingsScreen() {
   const isDark = useColorScheme() === 'dark';
   const router = useRouter();
   const settings = useSettings();
+  const t = useT();
 
   // Selected-chip colors that stay readable in both themes.
   const chipBg = isDark ? Brand.emeraldDark : Brand.emeraldSoft;
   const chipText = isDark ? '#ffffff' : Brand.emeraldDark;
+
+  const handleLanguage = (language: 'en' | 'sv' | 'ar') => {
+    settings.setLanguage(language);
+    applyRTL(language);
+  };
 
   const [permission, setPermission] = useState<ReminderPermissionStatus | 'unknown' | 'unsupported'>('unknown');
   const [scheduledCount, setScheduledCount] = useState<number | null>(null);
@@ -427,13 +435,159 @@ export default function SettingsScreen() {
             accessibilityLabel="Back">
             <Ionicons name="arrow-back" size={22} color={theme.text} />
           </Pressable>
-          <ThemedText style={styles.title}>Settings</ThemedText>
+          <ThemedText style={styles.title}>{t('settings.title')}</ThemedText>
           <View style={styles.headerRight} />
         </View>
 
         <ScrollView contentContainerStyle={styles.body}>
+          {/* GENERAL — language + theme */}
+          <View style={[styles.groupCard, { backgroundColor: theme.backgroundElement }]}>
+            <ThemedText style={styles.sectionTitle} themeColor="textSecondary">
+              {t('settings.general')}
+            </ThemedText>
+            <ThemedText style={styles.groupLabel} themeColor="textSecondary">
+              {t('settings.language')}
+            </ThemedText>
+            <View style={styles.optionRow}>
+              {LANGUAGES.map((language) => (
+                <Pressable
+                  key={language.id}
+                  onPress={() => handleLanguage(language.id)}
+                  style={[
+                    styles.option,
+                    {
+                      borderColor: settings.language === language.id ? Brand.emerald : theme.backgroundSelected,
+                      backgroundColor: settings.language === language.id ? chipBg : 'transparent',
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: settings.language === language.id }}
+                  testID={`settings-language-${language.id}`}>
+                  <ThemedText
+                    style={[styles.optionText, settings.language === language.id && { color: chipText }]}>
+                    {language.nativeLabel}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+            <ThemedText style={styles.rtlHint} themeColor="textSecondary">
+              {t('settings.rtlHint')}
+            </ThemedText>
+            <ThemedText style={styles.groupLabel} themeColor="textSecondary">
+              {t('settings.theme')}
+            </ThemedText>
+            <View style={styles.optionRow}>
+              {(
+                [
+                  ['system', t('settings.themeSystem')],
+                  ['light', t('settings.themeLight')],
+                  ['dark', t('settings.themeDark')],
+                ] as ['system' | 'light' | 'dark', string][]
+              ).map(([themeId, label]) => (
+                <Pressable
+                  key={themeId}
+                  onPress={() => settings.setTheme(themeId)}
+                  style={[
+                    styles.option,
+                    {
+                      borderColor: settings.theme === themeId ? Brand.emerald : theme.backgroundSelected,
+                      backgroundColor: settings.theme === themeId ? chipBg : 'transparent',
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: settings.theme === themeId }}
+                  testID={`settings-theme-${themeId}`}>
+                  <ThemedText
+                    style={[styles.optionText, settings.theme === themeId && { color: chipText }]}>
+                    {label}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          {/* MUSHAF DISPLAY — layout + color presets */}
+          <View style={[styles.groupCard, { backgroundColor: theme.backgroundElement }]}>
+            <ThemedText style={styles.sectionTitle} themeColor="textSecondary">
+              {t('settings.mushafDisplay')}
+            </ThemedText>
+            <ThemedText style={styles.groupLabel} themeColor="textSecondary">
+              {t('settings.layout')}
+            </ThemedText>
+            <View style={styles.optionRow}>
+              {(
+                [
+                  ['lines', t('mushaf.layoutLines')],
+                  ['flow', t('mushaf.layoutFlow')],
+                ] as ['lines' | 'flow', string][]
+              ).map(([layoutId, label]) => (
+                <Pressable
+                  key={layoutId}
+                  onPress={() => settings.setMushafLayout(layoutId)}
+                  style={[
+                    styles.option,
+                    {
+                      borderColor: settings.mushafLayout === layoutId ? Brand.emerald : theme.backgroundSelected,
+                      backgroundColor: settings.mushafLayout === layoutId ? chipBg : 'transparent',
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: settings.mushafLayout === layoutId }}
+                  testID={`settings-layout-${layoutId}`}>
+                  <ThemedText
+                    style={[styles.optionText, settings.mushafLayout === layoutId && { color: chipText }]}>
+                    {label}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+            <ThemedText style={styles.groupLabel} themeColor="textSecondary">
+              {t('settings.textColor')}
+            </ThemedText>
+            <View style={styles.optionRow}>
+              {(
+                [
+                  ['classic', t('mushaf.colorClassic')],
+                  ['green', t('mushaf.colorGreen')],
+                  ['gold', t('mushaf.colorGold')],
+                  ['teal', t('mushaf.colorTeal')],
+                ] as ['classic' | 'green' | 'gold' | 'teal', string][]
+              ).map(([colorId, label]) => (
+                <Pressable
+                  key={colorId}
+                  onPress={() => settings.setMushafTextColor(colorId)}
+                  style={[
+                    styles.option,
+                    {
+                      borderColor: settings.mushafTextColor === colorId ? Brand.emerald : theme.backgroundSelected,
+                      backgroundColor: settings.mushafTextColor === colorId ? chipBg : 'transparent',
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: settings.mushafTextColor === colorId }}
+                  testID={`settings-color-${colorId}`}>
+                  <ThemedText
+                    style={[styles.optionText, settings.mushafTextColor === colorId && { color: chipText }]}>
+                    {label}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.switchRow}>
+              <ThemedText style={styles.rowName}>{t('mushaf.parchment')}</ThemedText>
+              <Switch
+                value={settings.mushafParchment}
+                onValueChange={settings.setMushafParchment}
+                trackColor={{ true: Brand.emerald }}
+                testID="settings-parchment"
+              />
+            </View>
+          </View>
+
+          {/* RECITER & AUDIO */}
+          <View style={[styles.groupCard, { backgroundColor: theme.backgroundElement }]}>
           <ThemedText style={styles.sectionTitle} themeColor="textSecondary">
-            RECITER
+            {t('settings.reciter')}
           </ThemedText>
           {RECITERS.map((r) => {
             const selected = r.id === settings.reciterId;
@@ -553,7 +707,10 @@ export default function SettingsScreen() {
               accessibilityLabel="Auto-advance to the next ayah"
             />
           </View>
+          </View>
 
+          {/* REMINDERS */}
+          <View style={[styles.groupCard, { backgroundColor: theme.backgroundElement }]}>
           <ThemedText style={styles.sectionTitle} themeColor="textSecondary">
             REMINDERS
           </ThemedText>
@@ -723,11 +880,17 @@ export default function SettingsScreen() {
                 : `${scheduledCount} reminder${scheduledCount === 1 ? '' : 's'} scheduled on this device.`}
             </ThemedText>
           ) : null}
+          </View>
 
-          <ThemedText style={styles.credits} themeColor="textSecondary">
-            Quran text (Hafs, Uthmani) © Tanzil Project · Audio streamed from everyayah.com · Fonts: Amiri (OFL),
-            Scheherazade New (SIL OFL)
+          {/* ABOUT */}
+          <View style={[styles.groupCard, { backgroundColor: theme.backgroundElement }]}>
+          <ThemedText style={styles.sectionTitle} themeColor="textSecondary">
+            {t('settings.about')}
           </ThemedText>
+          <ThemedText style={styles.credits} themeColor="textSecondary">
+            {t('settings.credits')}
+          </ThemedText>
+          </View>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -749,6 +912,15 @@ const styles = StyleSheet.create({
   headerRight: { width: 38 },
   body: { padding: Spacing.three, paddingBottom: Spacing.six, gap: Spacing.two },
   sectionTitle: { fontSize: 12, fontWeight: 700, letterSpacing: 1, marginTop: Spacing.three },
+  groupCard: { borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.three },
+  groupLabel: { fontSize: 13, fontWeight: 600, marginTop: Spacing.three },
+  rtlHint: { fontSize: 11, lineHeight: 15, marginTop: Spacing.one },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Spacing.three,
+  },
   subLabel: { fontSize: 11, fontWeight: 700, letterSpacing: 1, marginTop: Spacing.two },
   row: {
     flexDirection: 'row',

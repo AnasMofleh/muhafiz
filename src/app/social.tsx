@@ -18,6 +18,7 @@ import { Brand, Spacing } from '@/constants/theme';
 import { getIndex } from '@/data/quran';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
+import { useT } from '@/lib/i18n';
 import {
   challengeProgress,
   makeChallengeCode,
@@ -144,6 +145,7 @@ function SurahStepper({ label, value, min, max, onChange }: SurahStepperProps) {
 export default function SocialScreen() {
   const theme = useTheme();
   const isDark = useColorScheme() === 'dark';
+  const t = useT();
   const router = useRouter();
 
   const accent = isDark ? '#43D6A3' : Brand.emerald;
@@ -348,7 +350,7 @@ export default function SocialScreen() {
             accessibilityLabel="Back">
             <Ionicons name="arrow-back" size={22} color={theme.text} />
           </Pressable>
-          <ThemedText style={styles.headerTitle}>Journey together</ThemedText>
+          <ThemedText style={styles.headerTitle}>{t('social.title')}</ThemedText>
           <View style={styles.headerRight} />
         </View>
 
