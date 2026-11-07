@@ -6,8 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { PracticeOptions } from '@/components/practice-options';
 import { Brand, Spacing } from '@/constants/theme';
-import { getSurah, globalAyahNumber, juzStartGlobal } from '@/data/quran';
+import { getSurah } from '@/data/quran';
 import type { SurahData } from '@/data/types';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
@@ -16,65 +17,14 @@ import {
   cardAyahs,
   firstWords,
   gradeCardReview,
-  loadTodaySession,
   sessionSummary,
   type CardRow,
   type Rating,
 } from '@/lib/modes';
-import { ensureDb, getCardsForSurah, getAllCards, getOrCreateCard } from '@/lib/db';
-import { buildChunks } from '@/lib/scheduler';
 import { useT } from '@/lib/i18n';
+import { loadSectionQueue, shuffle } from '@/lib/practice-queue';
 import { useAyahAudio } from '@/lib/use-ayah-audio';
-import { useSettings, type FlashcardSection } from '@/store/settings';
-
-function shuffle<T>(items: T[]): T[] {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-/** Build the flashcard queue for the chosen section. */
-async function loadSectionQueue(
-  section: FlashcardSection,
-  surahNumber: number,
-  juzNumber: number
-): Promise<CardRow[]> {
-  await ensureDb();
-  switch (section) {
-    case 'today': {
-      return (await loadTodaySession(20)).cards;
-    }
-    case 'surah': {
-      const surah = await getSurah(surahNumber);
-      if (!surah) return [];
-      const cards: CardRow[] = [];
-      for (const chunk of buildChunks(surah)) {
-        cards.push(await getOrCreateCard(chunk.unitKey));
-      }
-      return cards;
-    }
-    case 'juz': {
-      // Cards overlapping the juz's global ayah range.
-      const from = juzStartGlobal(juzNumber);
-      const to = juzNumber < 30 ? juzStartGlobal(juzNumber + 1) - 1 : 6236;
-      const result: CardRow[] = [];
-      for (let s = 1; s <= 114; s += 1) {
-        for (const card of await getCardsForSurah(s)) {
-          const start = globalAyahNumber({ surah: card.surah, ayah: card.startAyah });
-          const end = globalAyahNumber({ surah: card.surah, ayah: card.endAyah });
-          if (start <= to && end >= from) result.push(card);
-        }
-      }
-      return result;
-    }
-    case 'learned': {
-      return (await getAllCards()).filter((card) => card.status !== 'new');
-    }
-  }
-}
+import { useSettings } from '@/store/settings';
 
 const GRADE_BUTTONS: { rating: Rating; label: string }[] = [
   { rating: 1, label: 'Again' },
@@ -90,16 +40,7 @@ export default function FlashcardsScreen() {
   const { session } = useLocalSearchParams<{ session?: string }>();
   const fontScale = useSettings((state) => state.fontScale);
   const t = useT();
-  const {
-    flashcardSection,
-    flashcardSurah,
-    flashcardJuz,
-    flashcardRandom,
-    setFlashcardSection,
-    setFlashcardSurah,
-    setFlashcardJuz,
-    setFlashcardRandom,
-  } = useSettings();
+  const { flashcardSection, flashcardSurah, flashcardJuz, flashcardRandom } = useSettings();
   const { playAyah, playing } = useAyahAudio();
 
   const [cards, setCards] = useState<CardRow[]>([]);
@@ -114,13 +55,23 @@ export default function FlashcardsScreen() {
   const [finished, setFinished] = useState(false);
   const [newBadges, setNewBadges] = useState<string[]>([]);
 
+  // The ?session=today param (from the Today screen) only sets the INITIAL
+  // section — later chip selections always win. This fixes the bug where
+  // switching sections appeared to do nothing.
+  const [initialSessionApplied, setInitialSessionApplied] = useState(false);
+  useEffect(() => {
+    if (session === 'today' && !initialSessionApplied) {
+      useSettings.getState().setFlashcardSection('today');
+      setInitialSessionApplied(true);
+    }
+  }, [session, initialSessionApplied]);
+
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        const section: FlashcardSection = session === 'today' ? 'today' : flashcardSection;
-        let loaded = await loadSectionQueue(section, flashcardSurah, flashcardJuz);
-        if (flashcardRandom || (session === 'today' && flashcardRandom)) {
+        let loaded = await loadSectionQueue(flashcardSection, flashcardSurah, flashcardJuz);
+        if (flashcardRandom) {
           loaded = shuffle(loaded);
         }
         if (active) {
@@ -141,7 +92,7 @@ export default function FlashcardsScreen() {
     return () => {
       active = false;
     };
-  }, [session, flashcardSection, flashcardSurah, flashcardJuz, flashcardRandom]);
+  }, [flashcardSection, flashcardSurah, flashcardJuz, flashcardRandom]);
 
   const card = cards[index] ?? null;
   const cardSurah = card?.surah ?? 0;
@@ -386,112 +337,7 @@ export default function FlashcardsScreen() {
             </View>
           ) : null}
 
-          {/* Section + order options */}
-          <View style={[styles.optionsCard, { backgroundColor: theme.backgroundElement }]}>
-            <ThemedText style={styles.optionLabel} themeColor="textSecondary">
-              {t('flashcards.section')}
-            </ThemedText>
-            <View style={styles.optionRow}>
-              {(
-                [
-                  ['today', t('flashcards.sectionToday')],
-                  ['surah', t('flashcards.sectionSurah')],
-                  ['juz', t('flashcards.sectionJuz')],
-                  ['learned', t('flashcards.sectionLearned')],
-                ] as [FlashcardSection, string][]
-              ).map(([key, label]) => (
-                <Pressable
-                  key={key}
-                  onPress={() => setFlashcardSection(key)}
-                  style={[
-                    styles.optionChip,
-                    {
-                      borderColor: flashcardSection === key ? Brand.emerald : theme.backgroundSelected,
-                      backgroundColor: flashcardSection === key ? Brand.emeraldSoft : 'transparent',
-                    },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: flashcardSection === key }}
-                  testID={`fc-section-${key}`}>
-                  <ThemedText
-                    type="smallBold"
-                    style={{ color: flashcardSection === key ? Brand.emeraldDark : theme.text }}>
-                    {label}
-                  </ThemedText>
-                </Pressable>
-              ))}
-            </View>
-            {flashcardSection === 'surah' ? (
-              <View style={styles.stepperRow}>
-                <Pressable
-                  onPress={() => setFlashcardSurah(Math.max(1, flashcardSurah - 1))}
-                  style={[styles.stepBtn, { borderColor: theme.backgroundSelected }]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Previous surah">
-                  <Ionicons name="remove" size={16} color={theme.text} />
-                </Pressable>
-                <ThemedText type="smallBold" testID="fc-surah-value">
-                  {t('common.surah')} {flashcardSurah}
-                </ThemedText>
-                <Pressable
-                  onPress={() => setFlashcardSurah(Math.min(114, flashcardSurah + 1))}
-                  style={[styles.stepBtn, { borderColor: theme.backgroundSelected }]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Next surah">
-                  <Ionicons name="add" size={16} color={theme.text} />
-                </Pressable>
-              </View>
-            ) : null}
-            {flashcardSection === 'juz' ? (
-              <View style={styles.stepperRow}>
-                <Pressable
-                  onPress={() => setFlashcardJuz(Math.max(1, flashcardJuz - 1))}
-                  style={[styles.stepBtn, { borderColor: theme.backgroundSelected }]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Previous juz">
-                  <Ionicons name="remove" size={16} color={theme.text} />
-                </Pressable>
-                <ThemedText type="smallBold" testID="fc-juz-value">
-                  Juz {flashcardJuz}
-                </ThemedText>
-                <Pressable
-                  onPress={() => setFlashcardJuz(Math.min(30, flashcardJuz + 1))}
-                  style={[styles.stepBtn, { borderColor: theme.backgroundSelected }]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Next juz">
-                  <Ionicons name="add" size={16} color={theme.text} />
-                </Pressable>
-              </View>
-            ) : null}
-            <View style={styles.randomRow}>
-              <ThemedText style={styles.optionLabel} themeColor="textSecondary">
-                {t('flashcards.order')}
-              </ThemedText>
-              <Pressable
-                onPress={() => setFlashcardRandom(!flashcardRandom)}
-                style={[
-                  styles.optionChip,
-                  {
-                    borderColor: flashcardRandom ? Brand.gold : theme.backgroundSelected,
-                    backgroundColor: flashcardRandom ? Brand.goldSoft : 'transparent',
-                  },
-                ]}
-                accessibilityRole="button"
-                accessibilityState={{ selected: flashcardRandom }}
-                testID="fc-random-toggle">
-                <Ionicons
-                  name={flashcardRandom ? 'shuffle' : 'swap-vertical-outline'}
-                  size={14}
-                  color={flashcardRandom ? Brand.goldDark : theme.text}
-                />
-                <ThemedText
-                  type="smallBold"
-                  style={{ color: flashcardRandom ? Brand.goldDark : theme.text }}>
-                  {flashcardRandom ? t('flashcards.orderRandom') : t('flashcards.orderSequential')}
-                </ThemedText>
-              </Pressable>
-            </View>
-          </View>
+          <PracticeOptions />
 
           {cards.length === 0 && !loading ? (
             <View style={[styles.emptyCard, { backgroundColor: theme.backgroundElement }]}>

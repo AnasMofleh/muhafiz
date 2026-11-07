@@ -292,90 +292,6 @@ export default function PathScreen() {
             </View>
 
             <ThemedText style={styles.sectionTitle} themeColor="textSecondary">
-              {t('path.histogramTitle')}
-            </ThemedText>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.histogramScroll}
-              testID="path-histogram">
-              {index.surahs.map((meta) => {
-                const row = progress.find((p) => p.surah === meta.number);
-                const pct = row?.percent ?? 0;
-                const inPlan = planSurahSet.has(meta.number);
-                const finished = pct >= 100;
-                const started = pct > 0;
-                const barHeight = Math.max(4, Math.round((pct / 100) * 120));
-                return (
-                  <Pressable
-                    key={meta.number}
-                    testID={`path-bar-${meta.number}`}
-                    onPress={() =>
-                      router.push({ pathname: '/surah/[id]', params: { id: String(meta.number) } })
-                    }
-                    accessibilityRole="button"
-                    accessibilityLabel={`Surah ${meta.number}: ${pct}%`}
-                    style={styles.histogramBarWrap}>
-                    <View
-                      style={[
-                        styles.histogramTrack,
-                        {
-                          borderColor: finished
-                            ? Brand.emerald
-                            : started
-                              ? Brand.gold
-                              : inPlan
-                                ? theme.backgroundSelected
-                                : 'transparent',
-                        },
-                      ]}>
-                      <View
-                        style={[
-                          styles.histogramFill,
-                          {
-                            height: barHeight,
-                            backgroundColor: finished
-                              ? Brand.emerald
-                              : started
-                                ? isDark
-                                  ? Brand.gold
-                                  : Brand.goldDark
-                                : 'transparent',
-                            opacity: finished || started ? 1 : 0,
-                          },
-                        ]}
-                      />
-                    </View>
-                    <ThemedText style={styles.histogramLabel} themeColor="textSecondary">
-                      {meta.number}
-                    </ThemedText>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            <View style={styles.histogramLegend}>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: Brand.emerald }]} />
-                <ThemedText type="small" themeColor="textSecondary">
-                  {t('path.histogramLegendFilled')}
-                </ThemedText>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: Brand.gold }]} />
-                <ThemedText type="small" themeColor="textSecondary">
-                  {t('path.histogramLegendPartial')}
-                </ThemedText>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: theme.backgroundSelected }]} />
-                <ThemedText type="small" themeColor="textSecondary">
-                  {t('path.histogramLegendEmpty')}
-                </ThemedText>
-              </View>
-            </View>
-
-            <ThemedText style={styles.sectionTitle} themeColor="textSecondary">
               SURAHS IN YOUR PATH
             </ThemedText>
             {progress.map((row) => {
@@ -511,22 +427,6 @@ const styles = StyleSheet.create({
   forecastText: { fontSize: 12, fontWeight: 700 },
   sectionTitle: { fontSize: 11, fontWeight: 700, letterSpacing: 1.2, marginTop: Spacing.three },
   juzGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.one },
-  histogramScroll: { paddingVertical: Spacing.two, paddingHorizontal: Spacing.two },
-  histogram: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
-  histogramBarWrap: { alignItems: 'center', width: 18 },
-  histogramTrack: {
-    height: 124,
-    width: 12,
-    borderRadius: 3,
-    borderWidth: 1.5,
-    justifyContent: 'flex-end',
-    overflow: 'hidden',
-  },
-  histogramFill: { width: '100%', borderBottomLeftRadius: 1.5, borderBottomRightRadius: 1.5 },
-  histogramLabel: { fontSize: 8, marginTop: 2, textAlign: 'center' },
-  histogramLegend: { flexDirection: 'row', gap: Spacing.three, marginTop: Spacing.two, flexWrap: 'wrap' },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
   juzCell: {
     width: 36,
     height: 36,

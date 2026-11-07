@@ -81,6 +81,10 @@ export default function SettingsScreen() {
     applyRTL(language);
   };
 
+  // Accordion: General expanded by default, other sections folded.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({ general: true });
+  const toggleSection = (key: string) => setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+
   const [permission, setPermission] = useState<ReminderPermissionStatus | 'unknown' | 'unsupported'>('unknown');
   const [scheduledCount, setScheduledCount] = useState<number | null>(null);
   const [hydrated, setHydrated] = useState(() => useSettings.persist.hasHydrated());
@@ -441,10 +445,24 @@ export default function SettingsScreen() {
 
         <ScrollView contentContainerStyle={styles.body}>
           {/* GENERAL — language + theme */}
-          <View style={[styles.groupCard, { backgroundColor: theme.backgroundElement }]}>
-            <ThemedText style={styles.sectionTitle} themeColor="textSecondary">
-              {t('settings.general')}
-            </ThemedText>
+<View style={[styles.groupCard, { backgroundColor: theme.backgroundElement }]}>
+            <Pressable
+              onPress={() => toggleSection('general')}
+              style={styles.sectionHeaderRow}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: Boolean(expanded["general"]) }}
+              testID={"settings-section-general"}>
+              <ThemedText style={styles.sectionTitleFlat}>
+                {t('settings.general')}
+              </ThemedText>
+              <Ionicons
+                name={expanded['general'] ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={theme.textSecondary}
+              />
+            </Pressable>
+            {expanded['general'] ? (<> 
+
             <ThemedText style={styles.groupLabel} themeColor="textSecondary">
               {t('settings.language')}
             </ThemedText>
@@ -504,13 +522,28 @@ export default function SettingsScreen() {
                 </Pressable>
               ))}
             </View>
-          </View>
+          </>) : null}
+</View>
 
           {/* MUSHAF DISPLAY — layout + color presets */}
-          <View style={[styles.groupCard, { backgroundColor: theme.backgroundElement }]}>
-            <ThemedText style={styles.sectionTitle} themeColor="textSecondary">
-              {t('settings.mushafDisplay')}
-            </ThemedText>
+<View style={[styles.groupCard, { backgroundColor: theme.backgroundElement }]}>
+            <Pressable
+              onPress={() => toggleSection('mushaf')}
+              style={styles.sectionHeaderRow}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: Boolean(expanded["mushaf"]) }}
+              testID={"settings-section-mushaf"}>
+              <ThemedText style={styles.sectionTitleFlat}>
+                {t('settings.mushafDisplay')}
+              </ThemedText>
+              <Ionicons
+                name={expanded['mushaf'] ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={theme.textSecondary}
+              />
+            </Pressable>
+            {expanded['mushaf'] ? (<> 
+
             <ThemedText style={styles.groupLabel} themeColor="textSecondary">
               {t('settings.layout')}
             </ThemedText>
@@ -582,13 +615,28 @@ export default function SettingsScreen() {
                 testID="settings-parchment"
               />
             </View>
-          </View>
+          </>) : null}
+</View>
 
           {/* RECITER & AUDIO */}
-          <View style={[styles.groupCard, { backgroundColor: theme.backgroundElement }]}>
-          <ThemedText style={styles.sectionTitle} themeColor="textSecondary">
-            {t('settings.reciter')}
-          </ThemedText>
+<View style={[styles.groupCard, { backgroundColor: theme.backgroundElement }]}>
+            <Pressable
+              onPress={() => toggleSection('reciter')}
+              style={styles.sectionHeaderRow}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: Boolean(expanded["reciter"]) }}
+              testID={"settings-section-reciter"}>
+              <ThemedText style={styles.sectionTitleFlat}>
+                {t('settings.reciter')}
+              </ThemedText>
+              <Ionicons
+                name={expanded['reciter'] ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={theme.textSecondary}
+              />
+            </Pressable>
+            {expanded['reciter'] ? (<> 
+
           {RECITERS.map((r) => {
             const selected = r.id === settings.reciterId;
             return (
@@ -707,13 +755,28 @@ export default function SettingsScreen() {
               accessibilityLabel="Auto-advance to the next ayah"
             />
           </View>
-          </View>
+          </>) : null}
+</View>
 
           {/* REMINDERS */}
-          <View style={[styles.groupCard, { backgroundColor: theme.backgroundElement }]}>
-          <ThemedText style={styles.sectionTitle} themeColor="textSecondary">
-            REMINDERS
-          </ThemedText>
+<View style={[styles.groupCard, { backgroundColor: theme.backgroundElement }]}>
+            <Pressable
+              onPress={() => toggleSection('reminders')}
+              style={styles.sectionHeaderRow}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: Boolean(expanded["reminders"]) }}
+              testID={"settings-section-reminders"}>
+              <ThemedText style={styles.sectionTitleFlat}>
+                REMINDERS
+              </ThemedText>
+              <Ionicons
+                name={expanded['reminders'] ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={theme.textSecondary}
+              />
+            </Pressable>
+            {expanded['reminders'] ? (<> 
+
 
           <View style={[styles.row, { backgroundColor: theme.backgroundElement }]}>
             <View style={styles.rowText}>
@@ -880,17 +943,33 @@ export default function SettingsScreen() {
                 : `${scheduledCount} reminder${scheduledCount === 1 ? '' : 's'} scheduled on this device.`}
             </ThemedText>
           ) : null}
-          </View>
+          </>) : null}
+</View>
 
           {/* ABOUT */}
-          <View style={[styles.groupCard, { backgroundColor: theme.backgroundElement }]}>
-          <ThemedText style={styles.sectionTitle} themeColor="textSecondary">
-            {t('settings.about')}
-          </ThemedText>
+<View style={[styles.groupCard, { backgroundColor: theme.backgroundElement }]}>
+            <Pressable
+              onPress={() => toggleSection('about')}
+              style={styles.sectionHeaderRow}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: Boolean(expanded["about"]) }}
+              testID={"settings-section-about"}>
+              <ThemedText style={styles.sectionTitleFlat}>
+                {t('settings.about')}
+              </ThemedText>
+              <Ionicons
+                name={expanded['about'] ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={theme.textSecondary}
+              />
+            </Pressable>
+            {expanded['about'] ? (<> 
+
           <ThemedText style={styles.credits} themeColor="textSecondary">
             {t('settings.credits')}
           </ThemedText>
-          </View>
+          </>) : null}
+</View>
         </ScrollView>
       </SafeAreaView>
     </ThemedView>
@@ -912,7 +991,14 @@ const styles = StyleSheet.create({
   headerRight: { width: 38 },
   body: { padding: Spacing.three, paddingBottom: Spacing.six, gap: Spacing.two },
   sectionTitle: { fontSize: 12, fontWeight: 700, letterSpacing: 1, marginTop: Spacing.three },
-  groupCard: { borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.three },
+  groupCard: { borderRadius: 14, marginBottom: Spacing.three, overflow: 'hidden' },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.three,
+  },
+  sectionTitleFlat: { fontSize: 12, fontWeight: 700, letterSpacing: 1 },
   groupLabel: { fontSize: 13, fontWeight: 600, marginTop: Spacing.three },
   rtlHint: { fontSize: 11, lineHeight: 15, marginTop: Spacing.one },
   switchRow: {

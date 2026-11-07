@@ -64,11 +64,18 @@ try {
   await page.waitForTimeout(500);
   await page.click('text=Continue');
   await page.waitForTimeout(500);
-  for (let step = 0; step < 3; step++) {
-    const next = page.locator('[data-testid="onboarding-next"]');
-    if (await next.isVisible()) await next.click();
-    await page.waitForTimeout(400);
-  }
+  // Step 2 (capacity) -> next; Step 3 has the doomscroll times list.
+  let next = page.locator('[data-testid="onboarding-next"]');
+  if (await next.isVisible()) await next.click();
+  await page.waitForTimeout(400);
+  await page.fill('[data-testid="onboarding-doomscroll"]', 'after Isha');
+  await page.click('[data-testid="onboarding-doomscroll-add"]');
+  await page.fill('[data-testid="onboarding-doomscroll"]', 'on the bus');
+  await page.click('[data-testid="onboarding-doomscroll-add"]');
+  await page.waitForSelector('[data-testid="onboarding-doomscroll-remove-1"]', { timeout: 10000 });
+  next = page.locator('[data-testid="onboarding-next"]');
+  if (await next.isVisible()) await next.click();
+  await page.waitForTimeout(400);
   const finish = page.locator('[data-testid="onboarding-finish"]');
   if (await finish.isVisible()) await finish.click();
   await page.waitForSelector('[data-testid="today-start"]', { timeout: 30000 });
@@ -185,14 +192,16 @@ try {
 }
 console.log('   profile badges rendered');
 
-// 10. Settings with reminders section
+// 10. Settings with reminders section (accordion: reminders starts collapsed)
 await page.goto(`${BASE}settings`, { waitUntil: 'networkidle', timeout: 60000 });
 try {
-  await page.waitForSelector('[data-testid="remind-enable"]', { timeout: 30000 });
+  await page.waitForSelector('[data-testid="settings-section-reminders"]', { timeout: 30000 });
+  await page.click('[data-testid="settings-section-reminders"]');
+  await page.waitForSelector('[data-testid="remind-enable"]', { timeout: 15000 });
 } catch {
   await fail('settings-reminders');
 }
-console.log('   settings reminders rendered');
+console.log('   settings reminders rendered (accordion expands)');
 
 // 11. Language switch (Swedish + Arabic RTL) and theme override
 console.log('11. language + theme settings');
@@ -215,29 +224,36 @@ try {
   await fail('i18n');
 }
 
-// 12. Path histogram
+// 12. Path — histogram removed, surah list remains
 await page.goto(`${BASE}path`, { waitUntil: 'networkidle', timeout: 60000 });
 try {
-  await page.waitForSelector('[data-testid="path-histogram"]', { timeout: 30000 });
-  await page.waitForSelector('[data-testid="path-bar-1"]', { timeout: 15000 });
-  const barCount = await page.evaluate(() => document.querySelectorAll('[data-testid^="path-bar-"]').length);
-  if (barCount < 114) throw new Error(`histogram has ${barCount} bars`);
+  await page.waitForSelector('text=SURAHS IN YOUR PATH', { timeout: 30000 });
+  const histogramGone = (await page.evaluate(() => document.querySelectorAll('[data-testid^="path-bar-"]').length)) === 0;
+  if (!histogramGone) throw new Error('histogram still present');
 } catch (e) {
-  errors.push('HISTOGRAM ASSERT: ' + e.message);
-  await fail('path-histogram');
+  errors.push('PATH ASSERT: ' + e.message);
+  await fail('path-list');
 }
-console.log('   path histogram rendered (114 bars)');
+console.log('   path: histogram removed, surah list rendered');
 
-// 13. Mushaf flow layout + gold color preset
+// 13. Mushaf flow layout + gold preset + pages mode
 await page.goto(`${BASE}surah/1`, { waitUntil: 'networkidle', timeout: 60000 });
 try {
   await page.waitForSelector('[data-testid="ayah-1"]', { timeout: 30000 });
-  await page.click('[data-testid="mushaf-layout-toggle"]');
+  await page.click('[data-testid="mushaf-layout-toggle"]', { force: true });
   await page.waitForSelector('[data-testid="ayah-flow"]', { timeout: 15000 });
-  await page.click('[data-testid="mushaf-palette"]');
-  await page.getByLabel('Gold').click();
+  await page.click('[data-testid="mushaf-palette"]', { force: true });
   await page.waitForTimeout(400);
-  await page.evaluate(() => document.body.click()); // close the palette backdrop
+  await page.evaluate(() => {
+    const el = [...document.querySelectorAll('button')].find(
+      (b) => b.getAttribute('aria-label') === 'Gold'
+    );
+    el?.click();
+  });
+  await page.waitForTimeout(400);
+  // Close the palette by clicking the backdrop ABOVE the sheet.
+  await page.click('[data-testid="mushaf-palette-backdrop"]', { force: true, position: { x: 20, y: 20 } });
+  await page.waitForTimeout(400);
   const goldVisible = await page.evaluate(() => {
     const el = [...document.querySelectorAll('span,div')].find(
       (d) => d.textContent.includes('بِسْمِ') && d.textContent.length < 60 && getComputedStyle(d).color === 'rgb(138, 106, 18)'
@@ -245,35 +261,74 @@ try {
     return Boolean(el);
   });
   if (!goldVisible) throw new Error('gold text preset not applied');
+  // Pages mode: one more toggle (flow -> pages). Al-Fatiha sits on page 48.
+  await page.click('[data-testid="mushaf-layout-toggle"]', { force: true });
+  await page.waitForSelector('[data-testid^="ayah-page-"]', { timeout: 15000 });
 } catch (e) {
   errors.push('MUSHAF MODES ASSERT: ' + e.message);
   await fail('mushaf-modes');
 }
-console.log('   flow layout + gold preset applied');
+console.log('   flow + gold preset + pages mode applied');
 
-// 14. Flashcards section/order options
-await page.goto(`${BASE}practice/flashcards`, { waitUntil: 'networkidle', timeout: 60000 });
+// 14. Flashcards section/order options — switching section must change the queue
+await page.goto(`${BASE}practice/flashcards?session=today`, { waitUntil: 'networkidle', timeout: 60000 });
 try {
   await page.waitForSelector('[data-testid="fc-section-surah"]', { timeout: 30000 });
   await page.click('[data-testid="fc-section-surah"]');
   await page.waitForSelector('[data-testid="fc-surah-value"]', { timeout: 15000 });
   await page.waitForSelector('[data-testid="fc-random-toggle"]', { timeout: 15000 });
-} catch {
+  // The stepper must actually change the value (regression: session=today
+  // used to freeze the section).
+  const before = await page.evaluate(() => document.querySelector('[data-testid="fc-surah-value"]')?.textContent ?? '');
+  await page.click('[aria-label="Next surah"]');
+  await page.waitForFunction(
+    (prev) => (document.querySelector('[data-testid="fc-surah-value"]')?.textContent ?? '') !== prev,
+    before,
+    { timeout: 10000 }
+  );
+  const after = await page.evaluate(() => document.querySelector('[data-testid="fc-surah-value"]')?.textContent ?? '');
+  if (before === after) throw new Error('surah stepper did not change the value');
+} catch (e) {
+  errors.push('FLASHCARDS ASSERT: ' + e.message);
   await fail('flashcards-options');
 }
-console.log('   flashcards section + random options rendered');
+console.log('   flashcards section switching works (session=today no longer freezes it)');
 
-// 15. Hide & Recite — hidden next ayah, no grading
+// 14b. Quiz has the same section options
+await page.goto(`${BASE}practice/quiz`, { waitUntil: 'networkidle', timeout: 60000 });
+try {
+  await page.waitForSelector('[data-testid="fc-section-surah"]', { timeout: 30000 });
+} catch {
+  await fail('quiz-options');
+}
+console.log('   quiz section options rendered');
+
+// 15. Hide & Recite — everything after the current ayah fully hidden, no grading
 await page.goto(`${BASE}practice/hide-ayah`, { waitUntil: 'networkidle', timeout: 60000 });
 try {
   await page.waitForSelector('[data-testid="hide-reveal"]', { timeout: 30000 });
+  // The hidden ayah's marker must be completely invisible (opacity 0).
+  const hiddenOpacity = await page.evaluate(() => {
+    const marker = document.querySelector('[data-testid="hide-ayah-2"]');
+    return marker ? getComputedStyle(marker.parentElement ?? marker).opacity : 'no-marker';
+  });
+  if (hiddenOpacity === 'no-marker') throw new Error('hidden ayah marker missing');
+  if (hiddenOpacity !== '0') throw new Error(`hidden ayah not fully hidden (opacity ${hiddenOpacity})`);
   const hasGrades = await page.evaluate(() => document.body.innerText.includes('Again') && document.body.innerText.includes('Easy'));
   if (hasGrades) throw new Error('grade buttons present in hide-ayah');
+  // Reveal shows only the next ayah.
+  await page.click('[data-testid="hide-reveal"]');
+  await page.waitForTimeout(300);
+  const afterReveal = await page.evaluate(() => {
+    const marker3 = document.querySelector('[data-testid="hide-ayah-3"]');
+    return marker3 ? getComputedStyle(marker3.parentElement ?? marker3).opacity : 'no-marker';
+  });
+  if (afterReveal !== '0') throw new Error(`ayah 3 should still be hidden after one reveal (opacity ${afterReveal})`);
 } catch (e) {
   errors.push('HIDE-AYAH ASSERT: ' + e.message);
   await fail('hide-ayah');
 }
-console.log('   hide-ayah: hidden next ayah, no grading');
+console.log('   hide-ayah: everything after current hidden, one-at-a-time reveal, no grading');
 
 // 16. Scratch removed from the practice picker
 await page.goto(`${BASE}practice`, { waitUntil: 'networkidle', timeout: 60000 });
@@ -287,12 +342,16 @@ try {
 }
 console.log('   scratch removed');
 
-// 17. Recite stream + shared grading round-trip
+// 17. Recite stream + settings gear panel + shared grading round-trip
 await page.goto(`${BASE}recite`, { waitUntil: 'networkidle', timeout: 60000 });
 try {
   await page.waitForSelector('[data-testid="recite-ayah-1"]', { timeout: 30000 });
-  await page.waitForSelector('[data-testid="recite-reveal-mode"]', { timeout: 15000 });
   await page.waitForSelector('[data-testid="recite-request-grade"]', { timeout: 15000 });
+  // Stream controls live behind the gear.
+  await page.click('[data-testid="recite-settings"]');
+  await page.waitForSelector('[data-testid="recite-reveal-mode"]', { timeout: 15000 });
+  await page.waitForSelector('[data-testid="recite-start-value"]', { timeout: 15000 });
+  await page.keyboard.press('Escape');
 } catch {
   await fail('recite-stream');
 }

@@ -258,18 +258,26 @@ export default function SurahScreen() {
         {/* Layout / palette toolbar */}
         <View style={styles.toolbar}>
           <Pressable
-            onPress={() => setMushafLayout(mushafLayout === 'lines' ? 'flow' : 'lines')}
+            onPress={() => {
+              const next =
+                mushafLayout === 'lines' ? 'flow' : mushafLayout === 'flow' ? 'pages' : 'lines';
+              setMushafLayout(next);
+            }}
             style={[styles.toolBtn, { borderColor: theme.backgroundSelected }]}
             accessibilityRole="button"
             accessibilityLabel={t('settings.layout')}
             testID="mushaf-layout-toggle">
             <Ionicons
-              name={mushafLayout === 'lines' ? 'reader-outline' : 'list-outline'}
+              name={mushafLayout === 'lines' ? 'reader-outline' : mushafLayout === 'flow' ? 'copy-outline' : 'list-outline'}
               size={18}
               color={Brand.teal}
             />
             <ThemedText type="smallBold" style={{ color: Brand.teal }}>
-              {mushafLayout === 'lines' ? t('mushaf.layoutFlow') : t('mushaf.layoutLines')}
+              {mushafLayout === 'lines'
+                ? t('mushaf.layoutFlow')
+                : mushafLayout === 'flow'
+                  ? t('mushaf.layoutPages')
+                  : t('mushaf.layoutLines')}
             </ThemedText>
           </Pressable>
           <Pressable
@@ -369,7 +377,10 @@ export default function SurahScreen() {
           transparent
           animationType={reduceMotion ? 'none' : 'slide'}
           onRequestClose={() => setPaletteOpen(false)}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setPaletteOpen(false)}>
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setPaletteOpen(false)}
+            testID="mushaf-palette-backdrop">
             <SafeAreaView edges={['bottom']} style={[styles.sheet, { backgroundColor: theme.background }]}>
               <Pressable onPress={() => {}} style={styles.sheetInner}>
                 <ThemedText style={styles.sheetTitle}>{t('mushaf.textColor')}</ThemedText>

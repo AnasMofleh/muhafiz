@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MushafText } from '@/components/mushaf-text';
@@ -18,26 +18,29 @@ import { useSettings } from '@/store/settings';
 
 /**
  * Hide & Recite — read the surah as it appears in the mushaf (continuous
- * flow), with the NEXT ayah hidden until you tap it. No grading, no cards:
- * this is pure practice; it only keeps the daily streak alive.
+ * flow) with EVERYTHING after the current ayah fully hidden. Each tap
+ * reveals only the next ayah. No grading; keeps the daily streak alive.
+ * Start-ayah + surah controls live behind the gear in the corner.
  */
 export default function HideAyahScreen() {
   const theme = useTheme();
   const isDark = useColorScheme() === 'dark';
   const router = useRouter();
   const t = useT();
-  const { mushafTextColor, mushafParchment, fontScale, flashcardSurah } = useSettings();
+  const { mushafTextColor, mushafParchment, fontScale, flashcardSurah, setFlashcardSurah } =
+    useSettings();
 
   const [surah, setSurah] = useState<SurahData | null>(null);
+  const [startAyah, setStartAyah] = useState(1);
   const [current, setCurrent] = useState(1);
-  const [revealed, setRevealed] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setSurah(null);
+    setStartAyah(1);
     setCurrent(1);
-    setRevealed(false);
     getSurah(flashcardSurah)
       .then((data) => {
         if (cancelled) return;
@@ -53,9 +56,15 @@ export default function HideAyahScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flashcardSurah]);
 
+  const applyStartAyah = (ayah: number) => {
+    setStartAyah(ayah);
+    setCurrent(ayah);
+    setPanelOpen(false);
+  };
+
   const reveal = () => {
-    if (revealed) return;
-    setRevealed(true);
+    if (!surah || current >= surah.ayahCount) return;
+    setCurrent(current + 1);
     // A revealed ayah counts as practice — keeps the streak alive.
     ensureDb()
       .then(() => recordActivity(localDateKey()))
@@ -65,16 +74,18 @@ export default function HideAyahScreen() {
   const next = () => {
     if (!surah) return;
     if (current >= surah.ayahCount) {
-      setCurrent(1);
+      setCurrent(startAyah);
     } else {
       setCurrent(current + 1);
     }
-    setRevealed(false);
   };
 
-  // The ayah being recited is visible; the NEXT one stays hidden until tap.
+  // Everything AFTER the current ayah is fully hidden; a tap reveals only
+  // the next one.
   const hidden = new Set<number>();
-  if (surah && current + 1 <= surah.ayahCount && !revealed) hidden.add(current + 1);
+  if (surah) {
+    for (let ayah = current + 1; ayah <= surah.ayahCount; ayah += 1) hidden.add(ayah);
+  }
 
   return (
     <ThemedView style={styles.root}>
@@ -88,7 +99,14 @@ export default function HideAyahScreen() {
             <Ionicons name="arrow-back" size={22} color={theme.text} />
           </Pressable>
           <ThemedText style={styles.title}>{t('hideAyah.title')}</ThemedText>
-          <View style={styles.headerRight} />
+          <Pressable
+            onPress={() => setPanelOpen(true)}
+            style={[styles.iconBtn, { borderColor: theme.backgroundSelected }]}
+            accessibilityRole="button"
+            accessibilityLabel={t('common.settings')}
+            testID="hide-ayah-settings">
+            <Ionicons name="settings-outline" size={22} color={theme.text} />
+          </Pressable>
         </View>
 
         <ThemedText style={styles.hint} themeColor="textSecondary">
@@ -104,14 +122,16 @@ export default function HideAyahScreen() {
             <ScrollView contentContainerStyle={styles.body}>
               <MushafText
                 surah={surah}
+                fromAyah={startAyah}
                 layout="flow"
                 textColor={mushafTextColor}
                 parchment={mushafParchment}
                 fontScale={fontScale}
                 currentAyah={current}
                 hiddenAyahs={hidden}
-                onAyahTap={(ayahNumber) => {
-                  if (hidden.has(ayahNumber)) reveal();
+                onAyahTap={() => {
+                  // Tapping the hidden area reveals only the next ayah.
+                  reveal();
                 }}
                 testIDPrefix="hide-ayah"
               />
@@ -122,7 +142,7 @@ export default function HideAyahScreen() {
             </ScrollView>
 
             <View style={styles.actions}>
-              {!revealed && current + 1 <= surah.ayahCount ? (
+              {current < surah.ayahCount ? (
                 <Pressable
                   onPress={reveal}
                   style={[styles.primaryBtn, { backgroundColor: Brand.emerald }]}
@@ -135,7 +155,7 @@ export default function HideAyahScreen() {
               ) : (
                 <Pressable
                   onPress={next}
-                  style={[styles.primaryBtn, { backgroundColor: isDark ? Brand.teal : Brand.teal }]}
+                  style={[styles.primaryBtn, { backgroundColor: Brand.teal }]}
                   accessibilityRole="button"
                   accessibilityLabel={t('common.next')}
                   testID="hide-next">
@@ -150,6 +170,72 @@ export default function HideAyahScreen() {
             <ThemedText themeColor="textSecondary">{t('common.loading')}</ThemedText>
           </View>
         )}
+
+        {/* Settings panel: start ayah + surah */}
+        <Modal
+          visible={panelOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setPanelOpen(false)}>
+          <View style={styles.modalBackdrop}>
+            <View style={[styles.modalCard, { backgroundColor: theme.background }]}>
+              <ThemedText type="subtitle" style={styles.modalTitle}>
+                {t('common.settings')}
+              </ThemedText>
+              <ThemedText style={styles.modalLabel} themeColor="textSecondary">
+                {t('common.surah')}
+              </ThemedText>
+              <View style={styles.stepperRow}>
+                <Pressable
+                  onPress={() => setFlashcardSurah(Math.max(1, flashcardSurah - 1))}
+                  style={[styles.stepBtn, { borderColor: theme.backgroundSelected }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous surah">
+                  <Ionicons name="remove" size={18} color={theme.text} />
+                </Pressable>
+                <ThemedText type="smallBold">
+                  {t('common.surah')} {flashcardSurah}
+                </ThemedText>
+                <Pressable
+                  onPress={() => setFlashcardSurah(Math.min(114, flashcardSurah + 1))}
+                  style={[styles.stepBtn, { borderColor: theme.backgroundSelected }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next surah">
+                  <Ionicons name="add" size={18} color={theme.text} />
+                </Pressable>
+              </View>
+              <ThemedText style={styles.modalLabel} themeColor="textSecondary">
+                {t('recite.startAyah')}
+              </ThemedText>
+              <View style={styles.stepperRow}>
+                <Pressable
+                  onPress={() => applyStartAyah(Math.max(1, startAyah - 1))}
+                  style={[styles.stepBtn, { borderColor: theme.backgroundSelected }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous ayah">
+                  <Ionicons name="remove" size={18} color={theme.text} />
+                </Pressable>
+                <ThemedText type="smallBold" testID="hide-start-value">
+                  {t('common.ayah')} {startAyah}
+                </ThemedText>
+                <Pressable
+                  onPress={() => applyStartAyah(Math.min(surah?.ayahCount ?? 1, startAyah + 1))}
+                  style={[styles.stepBtn, { borderColor: theme.backgroundSelected }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next ayah">
+                  <Ionicons name="add" size={18} color={theme.text} />
+                </Pressable>
+              </View>
+              <Pressable
+                onPress={() => setPanelOpen(false)}
+                style={[styles.closeBtn, { backgroundColor: Brand.emerald }]}
+                accessibilityRole="button"
+                accessibilityLabel={t('common.done')}>
+                <ThemedText style={styles.primaryBtnText}>{t('common.done')}</ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </ThemedView>
   );
@@ -185,4 +271,28 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.three,
   },
   primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: 700 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'center',
+    padding: Spacing.four,
+  },
+  modalCard: { borderRadius: 18, padding: Spacing.four, gap: Spacing.three },
+  modalTitle: { fontSize: 24, lineHeight: 30 },
+  modalLabel: { fontSize: 11, fontWeight: 700, letterSpacing: 1, marginTop: Spacing.two },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+  stepBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeBtn: {
+    borderRadius: 12,
+    paddingVertical: Spacing.three,
+    alignItems: 'center',
+    marginTop: Spacing.two,
+  },
 });

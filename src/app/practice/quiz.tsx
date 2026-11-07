@@ -15,12 +15,15 @@ import { checkBadges, describeBadges, getBadgeState } from '@/lib/badges';
 import {
   gradeCardReview,
   gradeErrorMapping,
-  loadDefaultQueue,
   nextAyahRef,
   pickDueCard,
   type CardRow,
 } from '@/lib/modes';
+import { useT } from '@/lib/i18n';
+import { loadSectionQueue, shuffle } from '@/lib/practice-queue';
+import { useSettings } from '@/store/settings';
 import { useAyahAudio } from '@/lib/use-ayah-audio';
+import { PracticeOptions } from '@/components/practice-options';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 type QuizType = 'next' | 'blank' | 'order' | 'listen';
@@ -85,15 +88,6 @@ type Question = NextQuestion | BlankQuestion | OrderQuestion | ListenQuestion;
 // ---------------------------------------------------------------------------
 // Question generation
 // ---------------------------------------------------------------------------
-
-function shuffle<T>(items: T[]): T[] {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
 
 function uniqueTexts(texts: string[], exclude: string[], count: number): string[] {
   const seen = new Set(exclude);
@@ -347,6 +341,7 @@ export default function QuizScreen() {
   const isDark = useColorScheme() === 'dark';
   const router = useRouter();
   const { playAyah, playing } = useAyahAudio();
+  const { flashcardSection, flashcardSurah, flashcardJuz, flashcardRandom } = useSettings();
 
   const [cards, setCards] = useState<CardRow[]>([]);
   const [pool, setPool] = useState<PoolAyah[]>([]);
@@ -388,7 +383,12 @@ export default function QuizScreen() {
     let active = true;
     (async () => {
       try {
-        const loaded = await loadDefaultQueue(8);
+        // Same section/order settings as Flashcards.
+        const { flashcardSection, flashcardSurah, flashcardJuz, flashcardRandom } =
+          useSettings.getState();
+        let loaded = await loadSectionQueue(flashcardSection, flashcardSurah, flashcardJuz);
+        if (flashcardRandom) loaded = shuffle(loaded);
+        loaded = loaded.slice(0, 8);
         const builtPool = loaded.length > 0 ? await buildPool(loaded) : [];
         if (!active) return;
         setCards(loaded);
@@ -404,7 +404,8 @@ export default function QuizScreen() {
     return () => {
       active = false;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flashcardSection, flashcardSurah, flashcardJuz, flashcardRandom]);
 
   const question = questions[index] ?? null;
 
@@ -778,6 +779,8 @@ export default function QuizScreen() {
 
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
           {typeTabs}
+
+          <PracticeOptions />
 
           {error ? (
             <View style={[styles.errorCard, { backgroundColor: theme.backgroundElement }]}>

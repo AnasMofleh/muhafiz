@@ -7,7 +7,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const BASMALA_TEXT = 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ';
 
-export type MushafLayout = 'lines' | 'flow';
+export type MushafLayout = 'lines' | 'flow' | 'pages';
 export type MushafTextColor = 'classic' | 'green' | 'gold' | 'teal';
 
 interface MushafTextProps {
@@ -45,10 +45,51 @@ function resolveTextColor(
   }
 }
 
+function toArabicIndic(number: number): string {
+  const digits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  return String(number)
+    .split('')
+    .map((d) => digits[Number(d)] ?? d)
+    .join('');
+}
+
 /**
- * Shared mushaf renderer: per-ayah "lines" layout or continuous "flow"
- * (mushaf-style text with inline ayah markers). Used by the mushaf screen,
- * Hide & Recite and the Recite stream.
+ * Mushaf-authentic ayah-end marker: ﴿n﴾ (ornamental parens, Arabic-Indic
+ * number), gold, inline with the text.
+ */
+function AyahMarker({
+  number,
+  gold,
+  fontScale,
+  onPress,
+  testID,
+}: {
+  number: number;
+  gold: string;
+  fontScale: number;
+  onPress?: () => void;
+  testID?: string;
+}) {
+  return (
+    <RNText
+      testID={testID}
+      onPress={onPress}
+      suppressHighlighting={!onPress}
+      style={[
+        styles.marker,
+        { color: gold, fontSize: 15 * fontScale, lineHeight: 28 * fontScale },
+      ]}>
+      {'﴿'}
+      {toArabicIndic(number)}
+      {'﴾'}
+    </RNText>
+  );
+}
+
+/**
+ * Shared mushaf renderer: per-ayah "lines" layout, continuous "flow"
+ * (mushaf-style text with inline ayah markers), or "pages" (grouped by the
+ * 604-page mushaf, each page framed like the printed mushaf).
  */
 export function MushafText({
   surah,
@@ -77,7 +118,8 @@ export function MushafText({
   const ayahLineHeight = 52 * fontScale;
 
   const isHidden = (n: number) => Boolean(hiddenAyahs?.has(n));
-  const hideStyle = { opacity: 0.08 };
+  // Fully hidden (invisible), not blurred — layout is preserved.
+  const hideStyle = { opacity: 0 };
 
   const basmala = showBasmala ? (
     <ThemedText
@@ -89,57 +131,88 @@ export function MushafText({
     </ThemedText>
   ) : null;
 
+  // Continuous flow text for a set of ayahs (used by flow + pages modes).
+  const renderFlowText = (list: typeof ayahs) => (
+    <ThemedText
+      style={[
+        styles.flowText,
+        {
+          fontSize: ayahFontSize,
+          lineHeight: ayahLineHeight,
+          color: textColorResolved,
+        },
+      ]}>
+      {list.map((ayah) => {
+        const hidden = isHidden(ayah.number);
+        const isCurrent = currentAyah === ayah.number;
+        return (
+          <RNText key={ayah.number}>
+            <RNText style={hidden ? hideStyle : undefined}>
+              {ayah.text_uthmani}
+              {ayah.sajda ? ' ۩' : ''}
+              {'  '}
+            </RNText>
+            <RNText style={hidden ? hideStyle : undefined}>
+              <AyahMarker
+                number={ayah.number}
+                gold={gold}
+                fontScale={fontScale}
+                testID={`${testIDPrefix}-${ayah.number}`}
+                onPress={onAyahTap ? () => onAyahTap?.(ayah.number) : undefined}
+              />
+            </RNText>
+            {isCurrent && !hidden ? (
+              <RNText style={[styles.currentDot, { backgroundColor: highlight }]}>{' '}</RNText>
+            ) : null}
+          </RNText>
+        );
+      })}
+    </ThemedText>
+  );
+
   if (layout === 'flow') {
     return (
       <View
         style={[styles.flowWrap, parchment && { backgroundColor: parchmentBg }]}
         testID={`${testIDPrefix}-flow`}>
         {basmala}
-        <ThemedText
-          style={[
-            styles.flowText,
-            {
-              fontSize: ayahFontSize,
-              lineHeight: ayahLineHeight,
-              color: textColorResolved,
-              backgroundColor: parchment ? 'transparent' : undefined,
-            },
-          ]}>
-          {ayahs.map((ayah) => {
-            const hidden = isHidden(ayah.number);
-            const isCurrent = currentAyah === ayah.number;
-            return (
-              <RNText key={ayah.number}>
-                <RNText style={hidden ? hideStyle : undefined}>
-                  {ayah.text_uthmani}
-                  {ayah.sajda ? ' ۩' : ''}
-                  {'  '}
-                </RNText>
-                <RNText
-                  testID={`${testIDPrefix}-${ayah.number}`}
-                  onPress={hidden ? () => onAyahTap?.(ayah.number) : onAyahTap ? () => onAyahTap?.(ayah.number) : undefined}
-                  suppressHighlighting={!onAyahTap}
-                  style={[
-                    styles.flowMarker,
-                    {
-                      borderColor: gold,
-                      color: gold,
-                      fontSize: 15 * fontScale,
-                      width: 28 * fontScale,
-                      height: 28 * fontScale,
-                      lineHeight: 26 * fontScale,
-                      borderRadius: 14 * fontScale,
-                    },
-                    isCurrent && { backgroundColor: highlight, color: Brand.emerald },
-                    hidden && hideStyle,
-                  ]}>
-                  {ayah.number}
-                </RNText>
-                {' '}
-              </RNText>
-            );
-          })}
-        </ThemedText>
+        {renderFlowText(ayahs)}
+      </View>
+    );
+  }
+
+  if (layout === 'pages') {
+    // Group by the 604-page mushaf; each page is framed like a printed page.
+    const pages: { page: number; list: typeof ayahs }[] = [];
+    for (const ayah of ayahs) {
+      const last = pages[pages.length - 1];
+      if (last && last.page === ayah.page) {
+        last.list.push(ayah);
+      } else {
+        pages.push({ page: ayah.page, list: [ayah] });
+      }
+    }
+    return (
+      <View style={styles.pagesWrap}>
+        {pages.map(({ page, list }) => (
+          <View
+            key={page}
+            testID={`${testIDPrefix}-page-${page}`}
+            style={[
+              styles.pageFrame,
+              parchment && { backgroundColor: parchmentBg },
+              { borderColor: isDark ? Brand.goldDark : Brand.gold },
+            ]}>
+            {page === pages[0].page && showBasmala ? basmala : null}
+            {renderFlowText(list)}
+            <ThemedText style={[styles.pageNumber, { color: gold }]}>
+              {'صفحة '}
+              {toArabicIndic(page)}
+              {' · Page '}
+              {page}
+            </ThemedText>
+          </View>
+        ))}
       </View>
     );
   }
@@ -172,22 +245,8 @@ export function MushafText({
                   {' ۩'}
                 </ThemedText>
               ) : null}
-              <RNText>
-                <ThemedText
-                  style={[
-                    styles.ayahEnd,
-                    {
-                      borderColor: gold,
-                      width: 30 * fontScale,
-                      height: 30 * fontScale,
-                      borderRadius: 15 * fontScale,
-                    },
-                  ]}>
-                  <ThemedText style={[styles.ayahEndNumber, { color: gold, fontSize: 14 * fontScale }]}>
-                    {ayah.number}
-                  </ThemedText>
-                </ThemedText>
-              </RNText>
+              {' '}
+              <AyahMarker number={ayah.number} gold={gold} fontScale={fontScale} />
             </ThemedText>
           </Pressable>
         );
@@ -207,6 +266,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 4,
   },
+  pagesWrap: { gap: 16 },
+  pageFrame: {
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  pageNumber: {
+    fontFamily: 'Amiri',
+    fontSize: 12,
+    marginTop: 10,
+    textAlign: 'center',
+  },
   basmala: {
     fontFamily: 'Amiri',
     textAlign: 'center',
@@ -218,12 +291,12 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     writingDirection: 'rtl',
   },
-  flowMarker: {
+  marker: {
     fontFamily: 'Amiri',
     textAlign: 'center',
-    borderWidth: 1.5,
-    textAlignVertical: 'center',
-    overflow: 'hidden',
+  },
+  currentDot: {
+    borderRadius: 999,
   },
   ayahBlock: {
     paddingVertical: 8,
@@ -238,12 +311,4 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl',
   },
   sajda: { fontFamily: 'Amiri' },
-  ayahEnd: {
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'flex-start',
-    marginTop: 10,
-  },
-  ayahEndNumber: { fontFamily: 'Amiri' },
 });

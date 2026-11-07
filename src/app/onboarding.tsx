@@ -38,7 +38,19 @@ export default function OnboardingScreen() {
   const [dailyNew, setDailyNew] = useState(5);
   const [daysPerWeek, setDaysPerWeek] = useState<number>(5);
   const [prayerAnchor, setPrayerAnchor] = useState<string>('Fajr');
-  const [doomscroll, setDoomscroll] = useState('');
+  const addDoomscrollTime = () => {
+    const trimmed = doomscrollDraft.trim();
+    if (!trimmed) return;
+    setDoomscrollTimes((previous) => [...previous, trimmed]);
+    setDoomscrollDraft('');
+  };
+
+  const removeDoomscrollTime = (idx: number) => {
+    setDoomscrollTimes((previous) => previous.filter((_, i) => i !== idx));
+  };
+
+  const [doomscrollTimes, setDoomscrollTimes] = useState<string[]>([]);
+  const [doomscrollDraft, setDoomscrollDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,7 +121,7 @@ export default function OnboardingScreen() {
         dailyNew,
         daysPerWeek,
         prayerAnchor: prayerAnchor.toLowerCase(),
-        doomscroll,
+        doomscroll: JSON.stringify(doomscrollTimes),
         reciterId: settings.reciterId,
       });
       router.replace('/');
@@ -407,18 +419,54 @@ export default function OnboardingScreen() {
               <ThemedText style={styles.sectionTitle} themeColor="textSecondary">
                 WHEN DO YOU USUALLY DOOMSCROLL?
               </ThemedText>
-              <TextInput
-                value={doomscroll}
-                onChangeText={setDoomscroll}
-                placeholder="e.g. in bed, on the bus, after Isha"
-                placeholderTextColor={theme.textSecondary}
-                style={[
-                  styles.textInput,
-                  { backgroundColor: theme.backgroundElement, color: theme.text },
-                ]}
-                accessibilityLabel="When do you usually doomscroll?"
-                testID="onboarding-doomscroll"
-              />
+              {/* Multiple times can be added; stored as a JSON array. */}
+              <View style={styles.doomRow}>
+                <TextInput
+                  value={doomscrollDraft}
+                  onChangeText={setDoomscrollDraft}
+                  placeholder="e.g. in bed, on the bus, after Isha"
+                  placeholderTextColor={theme.textSecondary}
+                  style={[
+                    styles.textInput,
+                    styles.doomInput,
+                    { backgroundColor: theme.backgroundElement, color: theme.text },
+                  ]}
+                  accessibilityLabel="Add a doomscroll time"
+                  testID="onboarding-doomscroll"
+                />
+                <Pressable
+                  onPress={addDoomscrollTime}
+                  disabled={!doomscrollDraft.trim()}
+                  style={[
+                    styles.doomAddBtn,
+                    { backgroundColor: Brand.teal, opacity: doomscrollDraft.trim() ? 1 : 0.4 },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add time"
+                  testID="onboarding-doomscroll-add">
+                  <Ionicons name="add" size={18} color="#fff" />
+                </Pressable>
+              </View>
+              {doomscrollTimes.length > 0 ? (
+                <View style={styles.doomChips}>
+                  {doomscrollTimes.map((timeEntry, idx) => (
+                    <View
+                      key={`${timeEntry}-${idx}`}
+                      style={[styles.doomChip, { backgroundColor: Brand.tealSoft }]}>
+                      <ThemedText type="smallBold" style={{ color: Brand.teal }}>
+                        {timeEntry}
+                      </ThemedText>
+                      <Pressable
+                        onPress={() => removeDoomscrollTime(idx)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${timeEntry}`}
+                        testID={`onboarding-doomscroll-remove-${idx}`}>
+                        <Ionicons name="close" size={14} color={Brand.teal} />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
               <ThemedText style={styles.helper} themeColor="textSecondary">
                 We&apos;ll suggest swapping that scroll for a 5-minute review.
               </ThemedText>
@@ -662,6 +710,24 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
   },
   chipText: { fontSize: 13, fontWeight: 600 },
+  doomRow: { flexDirection: 'row', gap: Spacing.two, alignItems: 'center' },
+  doomInput: { flex: 1 },
+  doomAddBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  doomChips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  doomChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+    borderRadius: 999,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
+  },
   textInput: {
     borderRadius: 12,
     paddingHorizontal: Spacing.three,

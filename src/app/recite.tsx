@@ -42,13 +42,14 @@ import {
 import { useT } from '@/lib/i18n';
 import { gradeAyahRange } from '@/lib/modes';
 import { normalizeArabic, normalizeWord } from '@/lib/normalize-arabic';
-import { ayahAudioUrl, getReciter } from '@/lib/reciters';
+import { ayahAudioUrl, getReciter, PLAYBACK_RATES } from '@/lib/reciters';
 import { shareText, waLink, APP_URL } from '@/lib/share';
 import { DAILY_ASR_QUOTA, localDateKey, useAsrStore } from '@/store/asr';
 import { useSettings } from '@/store/settings';
 import type { Rating } from '@/lib/xp';
 
 const STREAM_WINDOW = 5;
+const CHECKPOINT_MS = 8000;
 
 const GRADES: { rating: Rating; label: string; color: string; testID: string }[] = [
   { rating: 1, label: 'Again', color: '#B3261E', testID: 'recite-grade-again' },
@@ -152,16 +153,35 @@ export default function ReciteScreen() {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 250);
 
-  const isRecording = recorderState.isRecording;
-  const busy = phase !== 'idle';
-  const checksToday = quotaDate === localDateKey() ? quotaUsedToday : 0;
-  const quotaReached = checksToday >= DAILY_ASR_QUOTA;
+  // Live-checkpoint machinery.
+  const windowAyahsRef = useRef<{ text_simple: string; number: number }[]>([]);
+  const revealModeRef = useRef(revealMode);
+  const checkpointBusyRef = useRef(false);
+  const nativeTranscriptRef = useRef('');
+  const fromAyahRef = useRef(fromAyah);
 
   const toAyah = Math.min(surah?.ayahCount ?? fromAyah + STREAM_WINDOW - 1, fromAyah + STREAM_WINDOW - 1);
+  const toAyahRef = useRef(toAyah);
+
+  useEffect(() => {
+    revealModeRef.current = revealMode;
+  }, [revealMode]);
+
   const windowAyahs = useMemo(() => {
     if (!surah) return [];
     return surah.ayahs.filter((a) => a.number >= fromAyah && a.number <= toAyah);
   }, [surah, fromAyah, toAyah]);
+
+  useEffect(() => {
+    windowAyahsRef.current = windowAyahs;
+    fromAyahRef.current = fromAyah;
+    toAyahRef.current = toAyah;
+  }, [windowAyahs, fromAyah, toAyah]);
+
+  const isRecording = recorderState.isRecording;
+  const busy = phase !== 'idle';
+  const checksToday = quotaDate === localDateKey() ? quotaUsedToday : 0;
+  const quotaReached = checksToday >= DAILY_ASR_QUOTA;
 
   useEffect(() => {
     ensureDb().catch(() => {});
@@ -228,6 +248,104 @@ export default function ReciteScreen() {
     }
   };
 
+  /**
+   * Shared pipeline: normalize + align a transcript against the current
+   * window, update the live word-check, and (in reveal mode) auto-reveal
+   * the next line when the previous one is sufficiently covered.
+   */
+  const processTranscript = useCallback((heard: string) => {
+    const window = windowAyahsRef.current;
+    if (window.length === 0) return;
+    const targetText = windowText(window);
+    const targetWords = normalizeArabic(targetText).split(' ').filter(Boolean);
+    const heardWords = normalizeArabic(heard).split(' ').filter(Boolean);
+    const alignment = alignWords(targetWords, heardWords);
+    const wordCounts = window.map((ayah) =>
+      normalizeArabic(ayah.text_simple).split(' ').filter(Boolean).length
+    );
+    const perAyahBuckets = splitAlignmentByAyah(alignment, wordCounts);
+    setTranscript(heard);
+    setResult(alignment);
+    setPerAyah(perAyahBuckets);
+
+    // Reveal-as-you-go: when the last revealed line is mostly covered,
+    // reveal the next hidden line automatically.
+    if (revealModeRef.current) {
+      const from = fromAyahRef.current;
+      const to = toAyahRef.current;
+      setRevealedSet((previous) => {
+        let nextHidden = -1;
+        for (let ayah = from + 1; ayah <= to; ayah += 1) {
+          if (!previous.has(ayah)) {
+            nextHidden = ayah;
+            break;
+          }
+        }
+        if (nextHidden === -1) return previous;
+        const previousLine = nextHidden - 1;
+        const bucket = perAyahBuckets.find((b) => b.ayah === previousLine);
+        if (!bucket) return previous;
+        const wordCount = window[previousLine - from] ? normalizeArabic(window[previousLine - from].text_simple).split(' ').filter(Boolean).length : 0;
+        if (wordCount > 0 && (wordCount - bucket.errorCount) / wordCount >= 0.8) {
+          return new Set(previous).add(nextHidden);
+        }
+        return previous;
+      });
+    }
+  }, []);
+
+  /** Live checkpoint: transcribe what has been recorded so far. */
+  const runCheckpoint = useCallback(async () => {
+    if (checkpointBusyRef.current) return;
+    checkpointBusyRef.current = true;
+    try {
+      const window = windowAyahsRef.current;
+      if (window.length === 0) return;
+      if (Platform.OS === 'web') {
+        const uri = recorder.uri;
+        if (!uri) return;
+        const blob = await (await fetch(uri)).blob();
+        if (blob.size < 1000) return;
+        const heard = await transcribe({ blob }, windowText(window));
+        processTranscript(heard);
+      } else {
+        // Native: stop, transcribe the segment, immediately re-record.
+        await recorder.stop();
+        const uri = recorder.uri;
+        if (uri) {
+          const heard = await transcribe(
+            { uri, mimeType: 'audio/m4a' },
+            windowText(window)
+          );
+          nativeTranscriptRef.current = nativeTranscriptRef.current
+            ? `${nativeTranscriptRef.current} ${heard}`
+            : heard;
+          processTranscript(nativeTranscriptRef.current);
+        }
+        await recorder.prepareToRecordAsync();
+        recorder.record();
+      }
+    } catch {
+      // Checkpoints are best-effort; quota/network errors surface on stop.
+    } finally {
+      checkpointBusyRef.current = false;
+    }
+  }, [processTranscript, recorder]);
+
+  const runCheckpointRef = useRef(runCheckpoint);
+  useEffect(() => {
+    runCheckpointRef.current = runCheckpoint;
+  }, [runCheckpoint]);
+
+  // Live continuous checking: a checkpoint every ~8s while recording.
+  useEffect(() => {
+    if (!isRecording) return;
+    const timer = setInterval(() => {
+      void runCheckpointRef.current();
+    }, CHECKPOINT_MS);
+    return () => clearInterval(timer);
+  }, [isRecording]);
+
   const stopRecording = async () => {
     const durationMillis = recorderState.durationMillis;
     setPhase('transcribing');
@@ -255,16 +373,11 @@ export default function ReciteScreen() {
       }
 
       const heard = await transcribe(recording, windowText(windowAyahs));
-      const targetText = windowText(windowAyahs);
-      const targetWords = normalizeArabic(targetText).split(' ').filter(Boolean);
-      const heardWords = normalizeArabic(heard).split(' ').filter(Boolean);
-      const alignment = alignWords(targetWords, heardWords);
-      const wordCounts = windowAyahs.map((ayah) =>
-        normalizeArabic(ayah.text_simple).split(' ').filter(Boolean).length
-      );
-      setTranscript(heard);
-      setResult(alignment);
-      setPerAyah(splitAlignmentByAyah(alignment, wordCounts));
+      const finalText = Platform.OS === 'web' ? heard : nativeTranscriptRef.current
+        ? `${nativeTranscriptRef.current} ${heard}`
+        : heard;
+      processTranscript(finalText);
+      nativeTranscriptRef.current = '';
     } catch (caught) {
       setError(caught instanceof AsrError ? caught.message : t('recite.checkFailed'));
       setResult(null);
@@ -399,60 +512,6 @@ export default function ReciteScreen() {
             </ThemedText>
           </View>
 
-          {/* Stream controls */}
-          <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
-            <View style={styles.streamControls}>
-              <View style={styles.stepperGroup}>
-                <ThemedText style={styles.stepperLabel} themeColor="textSecondary">
-                  {t('recite.startAyah')}
-                </ThemedText>
-                <View style={styles.stepperControls}>
-                  <Pressable
-                    onPress={() => setFromAyah((current) => Math.max(1, current - STREAM_WINDOW))}
-                    disabled={busy}
-                    accessibilityRole="button"
-                    accessibilityLabel="Previous block"
-                    style={[styles.stepButton, { borderColor: theme.backgroundSelected }]}>
-                    <Ionicons name="remove" size={16} color={theme.text} />
-                  </Pressable>
-                  <ThemedText style={styles.stepValue}>
-                    {fromAyah}–{toAyah}
-                  </ThemedText>
-                  <Pressable
-                    onPress={() => setFromAyah((current) => Math.min(Math.max(1, (surah?.ayahCount ?? 1) - STREAM_WINDOW + 1), current + STREAM_WINDOW))}
-                    disabled={busy}
-                    accessibilityRole="button"
-                    accessibilityLabel="Next block"
-                    style={[styles.stepButton, { borderColor: theme.backgroundSelected }]}>
-                    <Ionicons name="add" size={16} color={theme.text} />
-                  </Pressable>
-                </View>
-              </View>
-              <Pressable
-                onPress={() => {
-                  setRevealMode(!revealMode);
-                  setRevealedSet(new Set());
-                }}
-                style={[
-                  styles.modeChip,
-                  { borderColor: revealMode ? Brand.gold : theme.backgroundSelected, backgroundColor: revealMode ? Brand.goldSoft : 'transparent' },
-                ]}
-                accessibilityRole="button"
-                accessibilityState={{ selected: revealMode }}
-                testID="recite-reveal-mode">
-                <Ionicons name={revealMode ? 'eye-outline' : 'eye-off-outline'} size={14} color={revealMode ? Brand.goldDark : theme.text} />
-                <ThemedText type="smallBold" style={{ color: revealMode ? Brand.goldDark : theme.text }}>
-                  {revealMode ? t('recite.revealMode') : t('recite.seeAll')}
-                </ThemedText>
-              </Pressable>
-            </View>
-            {revealMode ? (
-              <ThemedText type="small" themeColor="textSecondary">
-                {t('recite.revealHint')}
-              </ThemedText>
-            ) : null}
-          </View>
-
           {/* The stream itself */}
           {surah ? (
             <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
@@ -549,7 +608,8 @@ export default function ReciteScreen() {
                 </ThemedText>
               </Pressable>
               <ThemedText type="small" themeColor="textSecondary">
-                {t('recite.quota', { used: checksToday, limit: DAILY_ASR_QUOTA })}
+                {t('recite.quota', { used: checksToday, limit: DAILY_ASR_QUOTA })} ·{' '}
+                {t('recite.liveNote')}
               </ThemedText>
             </View>
             {quotaReached ? (
@@ -704,12 +764,108 @@ export default function ReciteScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      {/* Groq key modal */}
+      {/* Settings panel: stream controls + Groq key */}
       <Modal visible={keyModalVisible} transparent animationType="fade" onRequestClose={() => setKeyModalVisible(false)}>
         <KeyboardAvoidingView style={styles.modalRoot} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.modalBackdrop}>
             <View style={[styles.modalCard, { backgroundColor: theme.background }]}>
               <ThemedText type="subtitle" style={styles.modalTitle}>
+                {t('common.settings')}
+              </ThemedText>
+
+              {/* Start ayah */}
+              <ThemedText style={styles.modalLabel} themeColor="textSecondary">
+                {t('recite.startAyah')}
+              </ThemedText>
+              <View style={styles.stepperControls}>
+                <Pressable
+                  onPress={() => setFromAyah((current) => Math.max(1, current - STREAM_WINDOW))}
+                  disabled={busy}
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous block"
+                  style={[styles.stepButton, { borderColor: theme.backgroundSelected }]}>
+                  <Ionicons name="remove" size={16} color={theme.text} />
+                </Pressable>
+                <ThemedText style={styles.stepValue} testID="recite-start-value">
+                  {fromAyah}–{toAyah}
+                </ThemedText>
+                <Pressable
+                  onPress={() =>
+                    setFromAyah((current) =>
+                      Math.min(Math.max(1, (surah?.ayahCount ?? 1) - STREAM_WINDOW + 1), current + STREAM_WINDOW)
+                    )
+                  }
+                  disabled={busy}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next block"
+                  style={[styles.stepButton, { borderColor: theme.backgroundSelected }]}>
+                  <Ionicons name="add" size={16} color={theme.text} />
+                </Pressable>
+              </View>
+
+              {/* Reveal mode */}
+              <ThemedText style={styles.modalLabel} themeColor="textSecondary">
+                {t('recite.streamTitle')}
+              </ThemedText>
+              <Pressable
+                onPress={() => {
+                  setRevealMode(!revealMode);
+                  setRevealedSet(new Set());
+                }}
+                style={[
+                  styles.modeChip,
+                  {
+                    borderColor: revealMode ? Brand.gold : theme.backgroundSelected,
+                    backgroundColor: revealMode ? Brand.goldSoft : 'transparent',
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: revealMode }}
+                testID="recite-reveal-mode">
+                <Ionicons
+                  name={revealMode ? 'eye-outline' : 'eye-off-outline'}
+                  size={14}
+                  color={revealMode ? Brand.goldDark : theme.text}
+                />
+                <ThemedText type="smallBold" style={{ color: revealMode ? Brand.goldDark : theme.text }}>
+                  {revealMode ? t('recite.revealMode') : t('recite.seeAll')}
+                </ThemedText>
+              </Pressable>
+              {revealMode ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  {t('recite.revealHint')}
+                </ThemedText>
+              ) : null}
+
+              {/* Playback speed */}
+              <ThemedText style={styles.modalLabel} themeColor="textSecondary">
+                {t('onboarding.speed')}
+              </ThemedText>
+              <View style={styles.optionRow}>
+                {PLAYBACK_RATES.map((rate) => (
+                  <Pressable
+                    key={rate}
+                    onPress={() => useSettings.getState().setPlaybackRate(rate)}
+                    style={[
+                      styles.speedChip,
+                      {
+                        borderColor: playbackRate === rate ? Brand.emerald : theme.backgroundSelected,
+                        backgroundColor: playbackRate === rate ? Brand.emeraldSoft : 'transparent',
+                      },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: playbackRate === rate }}>
+                    <ThemedText
+                      type="smallBold"
+                      style={{ color: playbackRate === rate ? Brand.emeraldDark : theme.text }}>
+                      {rate}×
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Groq key */}
+              <ThemedText type="smallBold" style={styles.modalLabel}>
                 {t('recite.groqKeyTitle')}
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
@@ -864,6 +1020,14 @@ const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.55)', justifyContent: 'center', padding: Spacing.four },
   modalCard: { borderRadius: 18, padding: Spacing.four, gap: Spacing.three },
   modalTitle: { fontSize: 24, lineHeight: 30 },
+  modalLabel: { fontSize: 11, fontWeight: 700, letterSpacing: 1, marginTop: Spacing.two },
+  optionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+  speedChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one,
+  },
   keyInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: Spacing.three, paddingVertical: Spacing.two, fontSize: 15 },
   modalActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   modalSpacer: { flex: 1 },

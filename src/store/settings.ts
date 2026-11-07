@@ -10,7 +10,7 @@ export type ReminderAnchor = 'fajr' | 'asr' | 'maghrib' | 'isha' | 'fixed';
 
 export type AppLanguage = 'en' | 'sv' | 'ar';
 export type AppTheme = 'system' | 'light' | 'dark';
-export type MushafLayout = 'lines' | 'flow';
+export type MushafLayout = 'lines' | 'flow' | 'pages';
 export type MushafTextColor = 'classic' | 'green' | 'gold' | 'teal';
 export type FlashcardSection = 'today' | 'surah' | 'juz' | 'learned';
 
