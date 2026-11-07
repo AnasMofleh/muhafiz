@@ -34,6 +34,10 @@ export interface QuranIndex {
   surahs: SurahMeta[];
   ayahCount: number;
   wordCount: number;
+  /** cumulative ayah count before surah i (prefix[0] = 0, prefix[1] = ayahs before surah 2) */
+  surahPrefix: number[];
+  /** global ayah number of the first ayah of each juz (index 0 = juz 1) */
+  juzStarts: number[];
 }
 
 export type AyahRef = { surah: number; ayah: number };

@@ -15,7 +15,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const BASE = process.env.MUHAFIZ_URL ?? 'https://anasmofleh.github.io/muhafiz/';
 const errors = [];
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } }); // phone viewport
 page.on('console', (msg) => {
   if (msg.type() === 'error') errors.push(msg.text());
@@ -54,16 +54,44 @@ await page.waitForTimeout(1500);
 await page.screenshot({ path: path.join(OUT, '2-mushaf-fatiha.png') });
 console.log('   mushaf opened (Al-Faatiha)');
 
-// 3. Tap ayah 1 -> player bar should appear
+// 3. Tap ayah 1 -> player bar should appear AND audio must actually play.
+//    expo-audio web creates its media element via `new Audio(...)`, so patch
+//    the constructor to observe real playback.
+await page.evaluate(() => {
+  window.__muhafizAudios = [];
+  const Orig = window.Audio;
+  window.Audio = function (...args) {
+    const el = new Orig(...args);
+    window.__muhafizAudios.push(el);
+    return el;
+  };
+  window.Audio.prototype = Orig.prototype;
+});
 await page.click('[data-testid="ayah-1"]');
 try {
   await page.waitForSelector('text=Mahmoud Khalil Al-Husary', { timeout: 15000 });
-} catch {
-  await fail('player-bar');
+  // Poll until the audio element is playing AND actually advancing
+  // (buffering on slow networks keeps currentTime at 0 for a while).
+  await page.waitForFunction(
+    () => {
+      const a = (window.__muhafizAudios ?? []).find((x) => x.src.includes('001001'));
+      return a && !a.paused && a.currentTime > 0;
+    },
+    { timeout: 25000 }
+  );
+  const t0 = await page.evaluate(
+    () => (window.__muhafizAudios.find((x) => x.src.includes('001001')) ?? {}).currentTime ?? 0
+  );
+  await page.waitForTimeout(1200);
+  const t1 = await page.evaluate(
+    () => (window.__muhafizAudios.find((x) => x.src.includes('001001')) ?? {}).currentTime ?? 0
+  );
+  if (!(t1 > t0)) throw new Error(`audio not advancing: ${t0} -> ${t1}`);
+  console.log(`   player bar appeared, audio playing (${t0.toFixed(2)}s -> ${t1.toFixed(2)}s)`);
+} catch (e) {
+  errors.push('AUDIO ASSERT: ' + e.message);
+  await fail('audio-playback');
 }
-await page.waitForTimeout(1200);
-await page.screenshot({ path: path.join(OUT, '3-player-bar.png') });
-console.log('   player bar appeared');
 
 // 4. Back to list, open Al-Baqarah (286 ayahs, virtualization)
 await page.click('[aria-label="Back"]').catch(async () => {
@@ -108,6 +136,16 @@ try {
 await page.waitForTimeout(1200);
 await page.screenshot({ path: path.join(OUT, '6-deep-link-baqarah.png') });
 console.log('   deep link rendered (Al-Baqarah)');
+
+// 7. Invalid surah deep link -> not-found state (no crash)
+console.log('7. invalid surah deep link');
+await page.goto(`${BASE}surah/999`, { waitUntil: 'networkidle', timeout: 60000 });
+try {
+  await page.waitForSelector('text=Surah not found', { timeout: 30000 });
+} catch {
+  await fail('invalid-surah');
+}
+console.log('   not-found state rendered');
 
 console.log('\nconsole/page errors:', errors.length === 0 ? 'none' : errors.join('\n  '));
 await browser.close();

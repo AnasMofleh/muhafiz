@@ -6,14 +6,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Brand, Spacing } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 import { getReciter, PLAYBACK_RATES, RECITERS, REPEAT_OPTIONS } from '@/lib/reciters';
 import { useSettings } from '@/store/settings';
 
 export default function SettingsScreen() {
   const theme = useTheme();
+  const isDark = useColorScheme() === 'dark';
   const router = useRouter();
   const settings = useSettings();
+
+  // Selected-chip colors that stay readable in both themes.
+  const chipBg = isDark ? Brand.emeraldDark : Brand.emeraldSoft;
+  const chipText = isDark ? '#ffffff' : Brand.emeraldDark;
 
   return (
     <ThemedView style={styles.root}>
@@ -65,10 +71,12 @@ export default function SettingsScreen() {
                   styles.option,
                   {
                     borderColor: rate === settings.playbackRate ? Brand.emerald : theme.backgroundSelected,
-                    backgroundColor: rate === settings.playbackRate ? Brand.emeraldSoft : 'transparent',
+                    backgroundColor: rate === settings.playbackRate ? chipBg : 'transparent',
                   },
                 ]}>
-                <ThemedText style={styles.optionText}>{rate}×</ThemedText>
+                <ThemedText style={[styles.optionText, rate === settings.playbackRate && { color: chipText }]}>
+                  {rate}×
+                </ThemedText>
               </Pressable>
             ))}
           </View>
@@ -85,10 +93,12 @@ export default function SettingsScreen() {
                   styles.option,
                   {
                     borderColor: n === settings.repeatAyah ? Brand.emerald : theme.backgroundSelected,
-                    backgroundColor: n === settings.repeatAyah ? Brand.emeraldSoft : 'transparent',
+                    backgroundColor: n === settings.repeatAyah ? chipBg : 'transparent',
                   },
                 ]}>
-                <ThemedText style={styles.optionText}>×{n}</ThemedText>
+                <ThemedText style={[styles.optionText, n === settings.repeatAyah && { color: chipText }]}>
+                  ×{n}
+                </ThemedText>
               </Pressable>
             ))}
           </View>
@@ -105,10 +115,12 @@ export default function SettingsScreen() {
                   styles.option,
                   {
                     borderColor: scale === settings.fontScale ? Brand.emerald : theme.backgroundSelected,
-                    backgroundColor: scale === settings.fontScale ? Brand.emeraldSoft : 'transparent',
+                    backgroundColor: scale === settings.fontScale ? chipBg : 'transparent',
                   },
                 ]}>
-                <ThemedText style={styles.optionText}>{scale === 0.85 ? 'A−' : scale === 1.15 ? 'A+' : 'A'}</ThemedText>
+                <ThemedText style={[styles.optionText, scale === settings.fontScale && { color: chipText }]}>
+                  {scale === 0.85 ? 'A−' : scale === 1.15 ? 'A+' : 'A'}
+                </ThemedText>
               </Pressable>
             ))}
           </View>

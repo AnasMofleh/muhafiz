@@ -33,6 +33,8 @@ export const Brand = {
   emeraldSoft: '#E3F2EE',
   emeraldDark: '#0A5C47',
   gold: '#C9A227',
+  /** darker gold for light-mode text/borders (contrast ≥ 4.5:1) */
+  goldDark: '#7A5F10',
   goldSoft: '#F7EFD8',
   ayahHighlight: '#F2E8C9', // parchment tone behind the active ayah
 } as const;

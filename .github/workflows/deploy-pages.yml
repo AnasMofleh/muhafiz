@@ -16,9 +16,9 @@ jobs:
   build-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      # Pinned to v4 commit SHAs (verified against the tag at pin time)
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
@@ -26,16 +26,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The base path comes from app.json (expo.extra.webBasePath) — single
+      # source of truth for both the babel inline and the path rewrite.
       - name: Export static web build
         run: npm run export:web
-        env:
-          EXPO_BASE_URL: /muhafiz
 
       - name: Rewrite asset paths for subpath hosting + SPA fallback
         run: node scripts/fix-paths.mjs
 
       - name: Deploy to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
+        uses: peaceiris/actions-gh-pages@329bcc8f12caed2cefe5a5b80781499a6f3b361b # v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
