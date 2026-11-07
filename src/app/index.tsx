@@ -344,12 +344,12 @@ export default function TodayScreen() {
                     <View
                       style={[
                         styles.navIcon,
-                        { backgroundColor: isDark ? Brand.emeraldDark : Brand.emeraldSoft },
+                        { backgroundColor: isDark ? Brand.teal : Brand.tealSoft },
                       ]}>
                       <Ionicons
                         name={item.icon}
                         size={20}
-                        color={isDark ? '#fff' : Brand.emeraldDark}
+                        color={isDark ? '#fff' : Brand.teal}
                       />
                     </View>
                     <ThemedText style={styles.navLabel}>{item.label}</ThemedText>

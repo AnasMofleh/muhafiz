@@ -11,8 +11,8 @@ export const Colors = {
   light: {
     text: '#000000',
     background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
+    backgroundElement: '#f8f9fa',
+    backgroundSelected: '#e9ecef',
     textSecondary: '#60646C',
   },
   dark: {
@@ -28,25 +28,27 @@ export const Colors = {
 export const Semantic = {
   danger: '#B3261E',
   dangerSoft: '#FDECEA',
-  warning: '#C9A227',
-  warningDark: '#7A5F10',
-  success: '#0E7A5F',
+  warning: '#C19A42',
+  warningDark: '#8A6A12',
+  success: '#196F15',
   successBright: '#43D6A3', // readable on dark backgrounds
 } as const;
 
 /**
- * Brand palette — deep emerald (Islamic green) + gold, plus the mushaf
- * ayah highlight used across all practice modes.
+ * Brand palette — the Alsalam color template: mosque green (#196F15),
+ * teal-navy (#15546F), gold (#F1C152 / #C19A42) on white.
  */
 export const Brand = {
-  emerald: '#0E7A5F',
-  emeraldSoft: '#E3F2EE',
-  emeraldDark: '#0A5C47',
-  gold: '#C9A227',
-  /** darker gold for light-mode text/borders (contrast ≥ 4.5:1) */
-  goldDark: '#7A5F10',
-  goldSoft: '#F7EFD8',
-  ayahHighlight: '#F2E8C9', // parchment tone behind the active ayah
+  emerald: '#196F15',
+  emeraldSoft: '#E6F0E6',
+  emeraldDark: '#0F4A0C',
+  teal: '#15546F',
+  tealSoft: '#E3EDF2',
+  gold: '#F1C152',
+  /** deeper gold for light-mode text/borders (contrast ≥ 4.5:1) */
+  goldDark: '#8A6A12',
+  goldSoft: '#FBF3DD',
+  ayahHighlight: '#F5EFD8', // parchment tone behind the active ayah
 } as const;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
