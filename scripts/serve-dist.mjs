@@ -23,6 +23,7 @@ const MIME = {
   '.jpg': 'image/jpeg',
   '.ttf': 'font/ttf',
   '.woff2': 'font/woff2',
+  '.wasm': 'application/wasm',
 };
 
 http

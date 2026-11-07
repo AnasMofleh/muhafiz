@@ -159,12 +159,19 @@ export default function SurahScreen() {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'Space' && !(e.target instanceof HTMLInputElement)) {
         e.preventDefault();
-        togglePlay();
+        togglePlayRef.current();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  });
+  }, []);
+
+  // Keep a ref to the latest togglePlay so the once-registered listener never
+  // closes over a stale handler.
+  const togglePlayRef = useRef(togglePlay);
+  useEffect(() => {
+    togglePlayRef.current = togglePlay;
+  }, [togglePlay]);
 
   if (invalid) {
     return (

@@ -24,6 +24,16 @@ export const Colors = {
   },
 } as const;
 
+/** Semantic status colors shared across practice modes (theme-independent). */
+export const Semantic = {
+  danger: '#B3261E',
+  dangerSoft: '#FDECEA',
+  warning: '#C9A227',
+  warningDark: '#7A5F10',
+  success: '#0E7A5F',
+  successBright: '#43D6A3', // readable on dark backgrounds
+} as const;
+
 /**
  * Brand palette — deep emerald (Islamic green) + gold, plus the mushaf
  * ayah highlight used across all practice modes.

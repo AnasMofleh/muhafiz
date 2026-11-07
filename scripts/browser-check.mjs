@@ -1,7 +1,8 @@
 // Browser smoke check for the deployed Muhafiz web app.
 // Run: node scripts/browser-check.mjs
-// Verifies: surah list renders, mushaf opens, player bar appears on tap,
-// and collects console errors. Screenshots land in scripts/.browser-check/.
+// Verifies: Today + onboarding + plan creation, mushaf + real audio playback,
+// practice/recite/social/profile/settings screens, deep links, not-found
+// state, and collects console errors. Screenshots in scripts/.browser-check/.
 
 import { chromium } from 'playwright';
 import fs from 'node:fs';
@@ -31,32 +32,57 @@ async function fail(label) {
   process.exit(1);
 }
 
-// 1. Surah list
-console.log('1. navigating to', BASE);
+// 1. Today screen (home) — fresh profile shows the welcome card
+console.log('1. Today welcome card');
 await page.goto(BASE, { waitUntil: 'networkidle', timeout: 60000 });
+try {
+  await page.waitForSelector('[data-testid="today-create-plan"]', { timeout: 30000 });
+} catch {
+  await fail('today-welcome');
+}
+await page.waitForTimeout(1000);
+await page.screenshot({ path: path.join(OUT, '1-today-welcome.png') });
+console.log('   Today welcome card rendered');
+
+// 2. Onboarding wizard -> plan creation
+console.log('2. onboarding + plan creation');
+await page.click('[data-testid="today-create-plan"]');
+try {
+  await page.waitForSelector('[data-testid="onboarding-next"]', { timeout: 30000 });
+  // Step 1: pick the whole Quran, confirm on the goal-details page.
+  await page.click('[data-testid="goal-quran"]');
+  await page.waitForTimeout(500);
+  await page.click('text=Continue');
+  await page.waitForTimeout(500);
+  for (let step = 0; step < 3; step++) {
+    const next = page.locator('[data-testid="onboarding-next"]');
+    if (await next.isVisible()) await next.click();
+    await page.waitForTimeout(400);
+  }
+  const finish = page.locator('[data-testid="onboarding-finish"]');
+  if (await finish.isVisible()) await finish.click();
+  await page.waitForSelector('[data-testid="today-start"]', { timeout: 30000 });
+} catch {
+  await fail('onboarding');
+}
+await page.waitForTimeout(800);
+await page.screenshot({ path: path.join(OUT, '2-today.png') });
+console.log('   plan created, Today blocks rendered');
+
+// 3. Mushaf: surah list -> Al-Faatiha -> tap ayah -> REAL audio playback
+console.log('3. mushaf + audio playback');
+await page.goto(`${BASE}mushaf`, { waitUntil: 'networkidle', timeout: 60000 });
 try {
   await page.waitForSelector('[data-testid="surah-1"]', { timeout: 30000 });
 } catch {
-  await fail('surah-list');
+  await fail('mushaf-list');
 }
-await page.waitForTimeout(1500); // let fonts settle
-await page.screenshot({ path: path.join(OUT, '1-surah-list.png') });
-console.log('   surah list rendered');
-
-// 2. Open Al-Faatiha
 await page.click('[data-testid="surah-1"]');
 try {
   await page.waitForSelector('[data-testid="ayah-1"]', { timeout: 30000 });
 } catch {
   await fail('mushaf');
 }
-await page.waitForTimeout(1500);
-await page.screenshot({ path: path.join(OUT, '2-mushaf-fatiha.png') });
-console.log('   mushaf opened (Al-Faatiha)');
-
-// 3. Tap ayah 1 -> player bar should appear AND audio must actually play.
-//    expo-audio web creates its media element via `new Audio(...)`, so patch
-//    the constructor to observe real playback.
 await page.evaluate(() => {
   window.__muhafizAudios = [];
   const Orig = window.Audio;
@@ -70,8 +96,6 @@ await page.evaluate(() => {
 await page.click('[data-testid="ayah-1"]');
 try {
   await page.waitForSelector('text=Mahmoud Khalil Al-Husary', { timeout: 15000 });
-  // Poll until the audio element is playing AND actually advancing
-  // (buffering on slow networks keeps currentTime at 0 for a while).
   await page.waitForFunction(
     () => {
       const a = (window.__muhafizAudios ?? []).find((x) => x.src.includes('001001'));
@@ -87,58 +111,25 @@ try {
     () => (window.__muhafizAudios.find((x) => x.src.includes('001001')) ?? {}).currentTime ?? 0
   );
   if (!(t1 > t0)) throw new Error(`audio not advancing: ${t0} -> ${t1}`);
-  console.log(`   player bar appeared, audio playing (${t0.toFixed(2)}s -> ${t1.toFixed(2)}s)`);
+  console.log(`   mushaf rendered, audio playing (${t0.toFixed(2)}s -> ${t1.toFixed(2)}s)`);
 } catch (e) {
   errors.push('AUDIO ASSERT: ' + e.message);
   await fail('audio-playback');
 }
+await page.screenshot({ path: path.join(OUT, '3-mushaf-audio.png') });
 
-// 4. Back to list, open Al-Baqarah (286 ayahs, virtualization)
-await page.click('[aria-label="Back"]').catch(async () => {
-  await page.goBack();
-});
-try {
-  await page.waitForSelector('[data-testid="surah-2"]', { timeout: 15000 });
-  await page.click('[data-testid="surah-2"]');
-} catch {
-  await fail('back-to-list');
-}
-try {
-  await page.waitForSelector('[data-testid="ayah-2"]', { timeout: 30000 });
-} catch {
-  await fail('baqarah');
-}
-await page.waitForTimeout(1500);
-await page.screenshot({ path: path.join(OUT, '4-baqarah.png') });
-console.log('   Al-Baqarah opened');
-
-// 5. Settings screen
-await page.goBack();
-try {
-  await page.waitForSelector('[aria-label="Settings"]', { timeout: 15000 });
-  await page.click('[aria-label="Settings"]');
-  await page.waitForSelector('text=Settings', { timeout: 15000 });
-} catch {
-  await fail('settings');
-}
-await page.waitForTimeout(800);
-await page.screenshot({ path: path.join(OUT, '5-settings.png') });
-console.log('   settings opened');
-
-// 6. Deep link: full page reload directly at a surah route (SPA fallback + absolute asset paths)
-console.log('6. deep-link reload at /surah/2');
+// 4. Deep link: full page reload at a surah route
+console.log('4. deep-link reload at /surah/2');
 await page.goto(`${BASE}surah/2`, { waitUntil: 'networkidle', timeout: 60000 });
 try {
   await page.waitForSelector('[data-testid="ayah-1"]', { timeout: 30000 });
 } catch {
   await fail('deep-link');
 }
-await page.waitForTimeout(1200);
-await page.screenshot({ path: path.join(OUT, '6-deep-link-baqarah.png') });
 console.log('   deep link rendered (Al-Baqarah)');
 
-// 7. Invalid surah deep link -> not-found state (no crash)
-console.log('7. invalid surah deep link');
+// 5. Invalid surah -> not-found state
+console.log('5. invalid surah deep link');
 await page.goto(`${BASE}surah/999`, { waitUntil: 'networkidle', timeout: 60000 });
 try {
   await page.waitForSelector('text=Surah not found', { timeout: 30000 });
@@ -146,6 +137,52 @@ try {
   await fail('invalid-surah');
 }
 console.log('   not-found state rendered');
+
+// 6. Practice mode picker
+await page.goto(`${BASE}practice`, { waitUntil: 'networkidle', timeout: 60000 });
+try {
+  await page.waitForSelector('[data-testid="practice-start-today"]', { timeout: 30000 });
+} catch {
+  await fail('practice');
+}
+console.log('   practice picker rendered');
+
+// 7. Recite screen — record button AND self-grade render without any ASR
+await page.goto(`${BASE}recite`, { waitUntil: 'networkidle', timeout: 60000 });
+try {
+  await page.waitForSelector('[data-testid="recite-record"]', { timeout: 30000 });
+  await page.waitForSelector('[data-testid="recite-grade-good"]', { timeout: 15000 });
+} catch {
+  await fail('recite');
+}
+console.log('   recite + self-grade rendered (no ASR needed)');
+
+// 8. Social screen
+await page.goto(`${BASE}social`, { waitUntil: 'networkidle', timeout: 60000 });
+try {
+  await page.waitForSelector('[data-testid="social-title-input"]', { timeout: 30000 });
+} catch {
+  await fail('social');
+}
+console.log('   social screen rendered');
+
+// 9. Profile with badge catalog
+await page.goto(`${BASE}profile`, { waitUntil: 'networkidle', timeout: 60000 });
+try {
+  await page.waitForSelector('text=Seven-Day Flame', { timeout: 30000 });
+} catch {
+  await fail('profile-badges');
+}
+console.log('   profile badges rendered');
+
+// 10. Settings with reminders section
+await page.goto(`${BASE}settings`, { waitUntil: 'networkidle', timeout: 60000 });
+try {
+  await page.waitForSelector('[data-testid="remind-enable"]', { timeout: 30000 });
+} catch {
+  await fail('settings-reminders');
+}
+console.log('   settings reminders rendered');
 
 console.log('\nconsole/page errors:', errors.length === 0 ? 'none' : errors.join('\n  '));
 await browser.close();

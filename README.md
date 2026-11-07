@@ -4,7 +4,7 @@
 
 - 🗓️ **A plan that works for you** — goal-based memorization plan (new lesson *sabaq*, recent review *sabaqi*, long-term revision *manzil*) with spaced repetition and smart local reminders.
 - 🎮 **Gamified memorization modes** — flashcards, hide-next-ayah (recite before revealing), scratch-to-reveal, and quizzes.
-- 🎧 **Listen** — multiple reciters (Alafasy, Husary, Minshawi, As-Sudais, Maher Al Muaiqly, …), ayah-by-ayah playback, 0.5×–2× speed.
+- 🎧 **Listen** — multiple reciters (Alafasy, Husary, Minshawi, Maher Al Muaiqly, …), ayah-by-ayah playback, 0.5×–2× speed.
 - 🎙️ **Recitation checking** — record yourself reciting and get corrected against the Hafs 'an 'Asim riwaya (AI speech-to-text + fuzzy matching).
 - 🗺️ **Learning path** — a visual journey showing how far you've come and what's left.
 - 🤝 **Journey together** — challenges and share cards you can send to friends on WhatsApp.

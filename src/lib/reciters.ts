@@ -53,13 +53,6 @@ export const RECITERS: Reciter[] = [
     style: 'murattal',
   },
   {
-    id: 'sudais',
-    name: 'Abdurrahman As-Sudais',
-    arabicName: 'عبد الرحمن السديس',
-    folder: 'Abdurrahmaan_As-Sudais_192kbps',
-    style: 'murattal',
-  },
-  {
     id: 'maher',
     name: 'Maher Al Muaiqly',
     arabicName: 'ماهر المعيقلي',
