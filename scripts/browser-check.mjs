@@ -18,8 +18,18 @@ const errors = [];
 
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } }); // phone viewport
+// Track REAL failures: non-document 4xx responses carry their URL, which the
+// browser's generic console noise does not. Document 404s on deep links are
+// the normal SPA-on-GitHub-Pages behavior (404.html serves the app shell).
+page.on('response', (r) => {
+  if (r.status() >= 400 && r.request().resourceType() !== 'document') {
+    errors.push(`HTTP ${r.status()}: ${r.url()}`);
+  }
+});
 page.on('console', (msg) => {
-  if (msg.type() === 'error') errors.push(msg.text());
+  if (msg.type() === 'error' && !msg.text().startsWith('Failed to load resource')) {
+    errors.push(msg.text());
+  }
 });
 page.on('pageerror', (err) => errors.push(`PAGEERROR: ${err.message}`));
 
